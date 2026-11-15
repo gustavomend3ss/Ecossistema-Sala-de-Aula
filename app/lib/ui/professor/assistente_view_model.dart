@@ -35,6 +35,7 @@ class AssistenteViewModel extends ChangeNotifier {
 
   static const sugestoes = [
     'Quem precisa de acompanhamento nesta turma?',
+    'Quem está atrasado nas entregas?',
     'Há notas pendentes?',
     'Como está a frequência?',
     'Quais critérios você usa?',

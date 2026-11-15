@@ -95,6 +95,32 @@ class TurmaViewModel extends ChangeNotifier {
     }
   }
 
+  Future<String?> marcarEntrega(int matriculaId, int atividadeId, bool entregue) async {
+    final chave = 'e$matriculaId-$atividadeId';
+    salvando.add(chave);
+    notifyListeners();
+    try {
+      await _repos.matriculas.marcarEntrega(matriculaId, atividadeId, entregue);
+      await carregar(silencioso: true);
+      return null;
+    } on ApiException catch (e) {
+      return e.mensagem;
+    } finally {
+      salvando.remove(chave);
+      notifyListeners();
+    }
+  }
+
+  Future<String?> criarAtividade(String titulo, String prazo, String descricao) async {
+    try {
+      await _repos.turmas.criarAtividade(turmaId, titulo, prazo, descricao);
+      await carregar(silencioso: true);
+      return null;
+    } on ApiException catch (e) {
+      return e.mensagem;
+    }
+  }
+
   /// Chamada rápida: marca presença para quem ainda não tem registro na aula.
   Future<String?> todosPresentes(int aulaId) async {
     final t = turma;

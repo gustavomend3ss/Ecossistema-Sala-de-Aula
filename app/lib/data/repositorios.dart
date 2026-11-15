@@ -40,6 +40,13 @@ class TurmaRepositorio {
   Future<List<Analise>> analisarTurma(int turmaId) async =>
       _lista(await _api.post('/turmas/$turmaId/analises'), Analise.fromJson);
 
+  Future<List<AtividadeResumo>> atividades(int turmaId) async =>
+      _lista(await _api.get('/turmas/$turmaId/atividades'), AtividadeResumo.fromJson);
+
+  Future<AtividadeResumo> criarAtividade(int turmaId, String titulo, String prazo, String descricao) async =>
+      AtividadeResumo.fromJson(_mapa(await _api.post('/turmas/$turmaId/atividades',
+          {'titulo': titulo, 'prazo': prazo, 'descricao': descricao})));
+
   Future<RespostaAssistente> perguntar(int turmaId, String pergunta) async =>
       RespostaAssistente.fromJson(
           _mapa(await _api.post('/turmas/$turmaId/assistente', {'pergunta': pergunta})));
@@ -59,6 +66,10 @@ class MatriculaRepositorio {
   Future<Registros> salvarPresenca(int matriculaId, int aulaId, bool presente) async =>
       Registros.fromJson(_mapa(await _api.put(
           '/matriculas/$matriculaId/presencas/$aulaId', {'presente': presente})));
+
+  Future<Registros> marcarEntrega(int matriculaId, int atividadeId, bool entregue) async =>
+      Registros.fromJson(_mapa(await _api.put(
+          '/matriculas/$matriculaId/entregas/$atividadeId', {'entregue': entregue})));
 
   Future<Analise> analisar(int matriculaId) async =>
       Analise.fromJson(_mapa(await _api.post('/matriculas/$matriculaId/analises')));

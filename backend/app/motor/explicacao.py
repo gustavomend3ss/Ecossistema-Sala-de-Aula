@@ -44,6 +44,12 @@ def montar_motivo(r: Resultado, c: Criterios) -> str:
             f"A frequência de {fmt_pct(r.frequencia)} está abaixo do limite de "
             f"{fmt_pct(c.frequencia_minima)} (R2).")
 
+    if "R6" in regras:
+        n = r.atividades_sem_entrega
+        inicio = "1 atividade venceu" if n == 1 else f"{n} atividades venceram"
+        partes.append(f"{inicio} sem entrega; o perfil {c.versao} tolera até "
+                      f"{c.atrasos_maximos} (R6).")
+
     for p in r.pendencias:
         nome = "A média" if p.indicador == "media" else "A frequência"
         partes.append(f"{nome} não pode ser avaliada: {p.motivo} (R4)")

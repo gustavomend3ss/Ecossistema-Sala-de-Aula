@@ -84,6 +84,9 @@ class MatriculaViewModel extends ChangeNotifier {
   Future<String?> salvarPresenca(int aulaId, bool presente) =>
       _salvar(() => _repos.matriculas.salvarPresenca(matriculaId, aulaId, presente));
 
+  Future<String?> marcarEntrega(int atividadeId, bool entregue) =>
+      _salvar(() => _repos.matriculas.marcarEntrega(matriculaId, atividadeId, entregue));
+
   Future<String?> _salvar(Future<Registros> Function() acao) async {
     try {
       registros = await acao();

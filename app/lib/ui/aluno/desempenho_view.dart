@@ -22,6 +22,8 @@ class DesempenhoView extends StatelessWidget {
       for (final a in r.aulas.where((a) => a.presente != true))
         OpcaoReferencia('aula:${a.aulaId}',
             'Aula ${a.ordem} • ${fmtData(a.data)} (${a.presente == null ? 'sem registro' : 'falta'})'),
+      for (final a in r.atividades.where((a) => a.situacao == 'atrasada'))
+        OpcaoReferencia('atividade:${a.atividadeId}', 'Entrega: ${a.titulo} (sem registro)'),
       const OpcaoReferencia('geral', 'Outro registro da matrícula'),
     ];
     final dados = await dialogoConferencia(context, opcoes: opcoes, inicial: inicial);
@@ -112,6 +114,24 @@ class DesempenhoView extends StatelessWidget {
           ]),
         );
 
+        final atividades = Secao(
+          titulo: 'Minhas atividades',
+          subtitulo: 'Prazos e situação de cada entrega.',
+          child: r.atividades.isEmpty
+              ? const Text('Nenhuma atividade nesta disciplina.', style: TextStyle(color: Cores.textoSuave))
+              : Column(children: [
+                  for (final a in r.atividades)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(a.titulo),
+                      subtitle: Text(
+                          'Prazo ${fmtData(a.prazo)}${a.entregueEm != null ? ' • entregue em ${fmtData(a.entregueEm!)}' : ''}'),
+                      trailing: ChipSituacao(situacao: a.situacao),
+                    ),
+                ]),
+        );
+
+        final semEntrega = r.atividades.where((a) => a.situacao == 'atrasada').toList();
         final acompanhar = Cartao(
           child: Padding(
             padding: const EdgeInsets.all(18),
@@ -122,11 +142,13 @@ class DesempenhoView extends StatelessWidget {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   const Text('O que acompanhar', style: TextStyle(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
-                  if (i.pendencias.isEmpty)
-                    const Text('Todas as avaliações e presenças estão lançadas. '
-                        'Se algum valor parecer errado, peça a conferência ao professor.')
-                  else
+                  if (i.pendencias.isEmpty && semEntrega.isEmpty)
+                    const Text('Todas as avaliações e presenças estão lançadas e não há atividade vencida '
+                        'sem entrega. Se algum valor parecer errado, peça a conferência ao professor.')
+                  else ...[
                     for (final p in i.pendencias) Text('• ${p.motivo}'),
+                    for (final a in semEntrega) Text('• "${a.titulo}" venceu em ${fmtData(a.prazo)} sem entrega registrada.'),
+                  ],
                 ]),
               ),
               const SizedBox(width: 12),
@@ -179,6 +201,8 @@ class DesempenhoView extends StatelessWidget {
           ],
           const SizedBox(height: 16),
           avaliacoes,
+          const SizedBox(height: 16),
+          atividades,
           const SizedBox(height: 16),
           acompanhar,
           if (!largo) ...[

@@ -2,7 +2,7 @@
 
 from app.motor import Criterios, Fatos, NotaFato, PresencaFato, analisar, montar_motivo
 
-DEMO = Criterios("DEMO-v1", media_minima=6.0, frequencia_minima=80.0)
+DEMO = Criterios("DEMO-v2", media_minima=6.0, frequencia_minima=80.0)
 
 
 def fatos(notas, presentes, total, sem_registro=0):
@@ -88,3 +88,62 @@ def test_mesma_entrada_mesma_saida():
     a = analisar(fatos([5.0, 5.4], 19, 25), DEMO)
     b = analisar(fatos([5.0, 5.4], 19, 25), DEMO)
     assert (a.media, a.frequencia, a.regras) == (b.media, b.frequencia, b.regras)
+
+
+# ------------------------------------------------- R6 e fatores de certeza
+from app.motor import EntregaFato, combinar_fc  # noqa: E402
+
+DEMO2 = Criterios("DEMO-v2", media_minima=6.0, frequencia_minima=80.0, atrasos_maximos=1)
+
+
+def com_entregas(base, situacoes):
+    ents = tuple(EntregaFato(f"Atividade {i + 1}", "2026-10-01", s) for i, s in enumerate(situacoes))
+    return Fatos(base.matricula, base.notas, base.presencas, entregas=ents)
+
+
+def test_r6_acima_do_limite():
+    f = com_entregas(fatos([7.0, 8.0], 23, 25), ["entregue", "atrasada", "atrasada"])
+    r = analisar(f, DEMO2)
+    assert [a.regra for a in r.acionadas] == ["R6"]
+    assert r.prioridade == "alerta_entregas"
+    assert r.acionadas[0].evidencia["entregas_vencidas"]["valor"] == 2
+
+
+def test_r6_no_limite_nao_dispara():
+    f = com_entregas(fatos([7.0, 8.0], 23, 25), ["entregue", "atrasada", "entregue_atraso"])
+    r = analisar(f, DEMO2)
+    assert r.acionadas == [] and r.prioridade == "sem_alerta"
+    assert r.taxa_entrega == 66.67
+
+
+def test_atividade_aberta_nao_conta_contra():
+    f = com_entregas(fatos([7.0, 8.0], 23, 25), ["aberta", "aberta", "aberta"])
+    r = analisar(f, DEMO2)
+    assert r.atividades_vencidas == 0 and r.acionadas == [] and r.taxa_entrega is None
+
+
+def test_fatores_de_certeza_do_a01():
+    r = analisar(fatos([5.0, 5.4], 19, 25), DEMO2)
+    fc = {a.regra: a.fc for a in r.acionadas}
+    assert fc == {"R1": 0.7, "R2": 0.6, "R3": 0.54}   # R3 = min(0,7; 0,6) × 0,9
+    assert r.certeza == 0.88                          # 0,7 + 0,6 × (1 − 0,7)
+
+
+def test_certeza_cresce_com_evidencia_independente():
+    f = com_entregas(fatos([5.0, 5.4], 19, 25), ["atrasada", "atrasada", "entregue"])
+    r = analisar(f, DEMO2)
+    assert r.regras == ["R1", "R2", "R3", "R6"]
+    assert r.certeza == 0.94                          # 0,88 + 0,5 × (1 − 0,88)
+    assert r.certeza < 1
+
+
+def test_poucos_dados_reduzem_a_certeza():
+    # 3 presenças em 4 aulas: 75% está abaixo de 80%, mas 4 aulas dizem pouco
+    r = analisar(fatos([7.0, 8.0], 3, 4), DEMO2)
+    assert [a.regra for a in r.acionadas] == ["R2"]
+    assert r.acionadas[0].fc == 0.24                  # (4/10) × 0,6
+
+
+def test_combinacao_mycin():
+    assert combinar_fc(0.6, 0.5) == 0.8
+    assert combinar_fc(0.0, 0.7) == 0.7

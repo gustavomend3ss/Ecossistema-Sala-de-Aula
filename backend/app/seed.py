@@ -2,8 +2,12 @@
 
 Uso:  python -m app.seed
 
-Turma de IA: A01, A02 e A03 exatamente como no Quadro 7 do Bloco 2.
+Turma de IA: A01, A02 e A03 com notas e frequência exatamente como no
+Quadro 7 do Bloco 2. No Bloco 3 entraram atividades com prazo: A02 deixou
+duas vencerem sem entrega e passa a acionar R6.
 Turma de Web: casos extras, incluindo a fronteira do T02 (média 6,0 e 80%).
+Os prazos são relativos à data de hoje, para a demonstração ter sempre
+atividades vencidas e em aberto.
 Outra professora com turma própria serve para testar o bloqueio do T06.
 Senha de todos os usuários de demonstração: demo123
 """
@@ -12,9 +16,12 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from sqlalchemy import MetaData
+
 from .database import Base, SessionLocal, engine
-from .models import (Aula, Avaliacao, Criterio, Matricula, Nota, Presenca,
-                     Turma, Usuario, VinculoProfessorTurma)
+from . import config
+from .models import (Atividade, Aula, Avaliacao, Criterio, Entrega, Matricula,
+                     Nota, Presenca, Turma, Usuario, VinculoProfessorTurma)
 from .seguranca import gerar_hash
 
 SENHA = "demo123"
@@ -75,13 +82,41 @@ def _matricular(db, turma, aluno, codigo, notas, presentes, sem_registro=0):
     return m
 
 
-def carregar() -> None:
-    Base.metadata.drop_all(bind=engine)
+def _atividades(db, turma, lista):
+    """lista: (título, descrição, dias em relação a hoje)."""
+    hoje = config.hoje()
+    criadas = []
+    for titulo, descricao, dias in lista:
+        a = Atividade(turma_id=turma.id, titulo=titulo, descricao=descricao,
+                      prazo=(hoje + timedelta(days=dias)).isoformat())
+        db.add(a)
+        criadas.append(a)
+    db.flush()
+    return criadas
+
+
+def _entregar(db, m, atividade, atraso_dias=0):
+    """Entrega no prazo (atraso 0 = um dia antes) ou com atraso em dias."""
+    prazo = date.fromisoformat(atividade.prazo)
+    dia = prazo + timedelta(days=atraso_dias) if atraso_dias > 0 else prazo - timedelta(days=1)
+    db.add(Entrega(matricula_id=m.id, atividade_id=atividade.id, entregue_em=dia.isoformat()))
+
+
+def carregar(recriar: bool = True) -> None:
+    if recriar:
+        # Reflete o banco antes de apagar: assim saem também tabelas de versões
+        # anteriores (como "sessao", da v0.1) que o modelo atual não conhece.
+        antigo = MetaData()
+        antigo.reflect(bind=engine)
+        antigo.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     h = gerar_hash(SENHA)   # mesmo hash para todos agiliza o seed (só demonstração)
 
-    demo = Criterio(versao="DEMO-v1", media_minima=6.0, frequencia_minima=80.0,
+    # DEMO-v2 = DEMO-v1 do Bloco 2 (média 6,0 e frequência 80%) + limite de
+    # entregas (R6), que entrou no Bloco 3.
+    demo = Criterio(versao="DEMO-v2", media_minima=6.0, frequencia_minima=80.0,
+                    atrasos_maximos=1,
                     descricao="Limites didáticos de demonstração; não são critérios oficiais da FAINOR.")
     db.add(demo)
     db.flush()
@@ -117,16 +152,40 @@ def carregar() -> None:
     gina = _usuario(db, "gina.alves", "Gina Alves", "aluno", h)
 
     # Quadro 7 do Bloco 2
-    _matricular(db, ia, ana, "A01", [5.0, 5.4], presentes=19)      # 5,2 e 76% → R1,R2,R3
-    _matricular(db, ia, bruno, "A02", [7.0, 8.0], presentes=23)    # 7,5 e 92% → sem alerta
-    _matricular(db, ia, carla, "A03", [7.0, None], presentes=23)   # média não avaliável (R4)
+    a01 = _matricular(db, ia, ana, "A01", [5.0, 5.4], presentes=19)      # 5,2 e 76% → R1,R2,R3
+    a02 = _matricular(db, ia, bruno, "A02", [7.0, 8.0], presentes=23)    # 7,5 e 92%, mas 2 sem entrega → R6
+    a03 = _matricular(db, ia, carla, "A03", [7.0, None], presentes=23)   # média não avaliável (R4)
 
     # Turma de Web: casos complementares
-    _matricular(db, web, diego, "W01", [8.0, 7.5, 7.0], presentes=19)   # 95% sem alerta
-    _matricular(db, web, elisa, "W02", [6.0, 6.0, 6.0], presentes=16)   # 6,0 e 80%: fronteira T02
-    _matricular(db, web, fabio, "W03", [7.0, 6.5, 8.0], presentes=14)   # 70% → só R2
-    _matricular(db, web, gina, "W04", [4.0, 5.5, 5.0], presentes=18, sem_registro=1)  # R1 + presença pendente
-    _matricular(db, web, ana, "W05", [9.0, 8.5, None], presentes=20)    # prova não lançada
+    w01 = _matricular(db, web, diego, "W01", [8.0, 7.5, 7.0], presentes=19)   # 95% sem alerta
+    w02 = _matricular(db, web, elisa, "W02", [6.0, 6.0, 6.0], presentes=16)   # 6,0 e 80%: fronteira T02
+    w03 = _matricular(db, web, fabio, "W03", [7.0, 6.5, 8.0], presentes=14)   # 70% → R2, e 2 sem entrega → R6
+    w04 = _matricular(db, web, gina, "W04", [4.0, 5.5, 5.0], presentes=18, sem_registro=1)  # R1 + presença pendente
+    w05 = _matricular(db, web, ana, "W05", [9.0, 8.5, None], presentes=20)    # prova não lançada
+    db.flush()
+
+    # Atividades com prazo (Bloco 3)
+    l1, l2, mapa, _base = _atividades(db, ia, [
+        ("Lista 1: busca cega em Python", "Largura, profundidade e custo uniforme.", -35),
+        ("Lista 2: A* e heurísticas", "Implementar A* e comparar heurísticas admissíveis.", -21),
+        ("Mapa de frames e redes semânticas", "Representar o domínio acadêmico em frames.", -8),
+        ("Base de regras com fatores de certeza", "Escrever regras com FC e testar a combinação.", 6),
+    ])
+    _entregar(db, a01, l1); _entregar(db, a01, l2, atraso_dias=2); _entregar(db, a01, mapa)
+    _entregar(db, a02, l1)                                   # L2 e mapa vencidos sem entrega
+    _entregar(db, a03, l1); _entregar(db, a03, l2)           # só o mapa falta (dentro do limite)
+
+    dores, proto, rotas, _deploy = _atividades(db, web, [
+        ("Mapa de dores e benchmarking", "Entregável de pesquisa do Bloco 1.", -40),
+        ("Protótipo mid-fi das telas", "Fluxo de navegação e telas principais.", -26),
+        ("Rotas e modelo de dados da API", "Quadro de rotas REST e entidades.", -12),
+        ("Deploy do sistema", "Publicar front-end e API.", 3),
+    ])
+    for m in (w01, w05):
+        _entregar(db, m, dores); _entregar(db, m, proto); _entregar(db, m, rotas)
+    _entregar(db, w02, dores); _entregar(db, w02, proto); _entregar(db, w02, rotas, atraso_dias=1)
+    _entregar(db, w03, dores)                                # 2 vencidas sem entrega
+    _entregar(db, w04, dores); _entregar(db, w04, proto)
 
     # Turma da outra docente (para o teste de bloqueio)
     _matricular(db, bd, bruno, "B01", [6.5], presentes=10)

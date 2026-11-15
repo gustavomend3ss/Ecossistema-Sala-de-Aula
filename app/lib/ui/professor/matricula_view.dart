@@ -102,9 +102,17 @@ class _MatriculaViewState extends State<MatriculaView> {
             revisao,
           ],
           const SizedBox(height: 16),
-          _SecaoRegistros(r: r, aoEditarNota: (n) => _editarNota(n, r), aoPresenca: (aulaId, p) async {
-            _avisar(await _vm.salvarPresenca(aulaId, p), 'Presença salva.');
-          }),
+          _SecaoRegistros(
+            r: r,
+            aoEditarNota: (n) => _editarNota(n, r),
+            aoPresenca: (aulaId, p) async {
+              _avisar(await _vm.salvarPresenca(aulaId, p), 'Presença salva.');
+            },
+            aoEntrega: (atividadeId, entregue) async {
+              _avisar(await _vm.marcarEntrega(atividadeId, entregue),
+                  entregue ? 'Entrega registrada com a data de hoje.' : 'Entrega desmarcada.');
+            },
+          ),
           const SizedBox(height: 16),
           _SecaoConferencias(itens: _vm.conferencias, aoResponder: _responder),
           const SizedBox(height: 16),
@@ -142,6 +150,14 @@ class _Indicadores extends StatelessWidget {
             : '${i.presencas} de ${i.unidadesConsideradas} unidades-aula com presença',
       ),
       CartaoIndicador(
+        titulo: 'Entregas',
+        valor: i.atividadesVencidas == 0 ? '—' : fmtPct(i.taxaEntrega),
+        icone: Icons.assignment_turned_in_outlined,
+        subtitulo: i.atividadesVencidas == 0
+            ? 'Nenhuma atividade vencida'
+            : '${i.atividadesSemEntrega} de ${i.atividadesVencidas} vencidas sem entrega',
+      ),
+      CartaoIndicador(
         titulo: 'Completude',
         valor: i.completude == 'completa' ? 'Completa' : 'Parcial',
         icone: Icons.fact_check_outlined,
@@ -154,7 +170,13 @@ class _Indicadores extends StatelessWidget {
           for (final w in cartoes) Padding(padding: const EdgeInsets.only(bottom: 12), child: w),
         ]);
       }
-      return Row(children: [
+      if (c.maxWidth < 1000) {
+        final largura = (c.maxWidth - 16) / 2;
+        return Wrap(spacing: 16, runSpacing: 16, children: [
+          for (final w in cartoes) SizedBox(width: largura, child: w),
+        ]);
+      }
+      return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         for (var k = 0; k < cartoes.length; k++) ...[
           if (k > 0) const SizedBox(width: 16),
           Expanded(child: cartoes[k]),
@@ -216,12 +238,15 @@ class _SecaoAnalise extends StatelessWidget {
             Expanded(child: Text(a.motivo, style: const TextStyle(fontSize: 15, height: 1.45))),
           ]),
         ),
+        const SizedBox(height: 16),
+        BarraCerteza(valor: a.certeza),
         const SizedBox(height: 18),
         const Text('Regras acionadas', style: TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
         if (regrasAlerta.isEmpty && a.pendencias.isEmpty)
           const Text('Nenhuma regra de alerta foi acionada.', style: TextStyle(color: Cores.textoSuave)),
-        for (final x in regrasAlerta) _LinhaRegra(regra: x.regra, evidencia: _evidencia(x)),
+        for (final x in regrasAlerta)
+          _LinhaRegra(regra: x.regra, evidencia: _evidencia(x), fc: x.fc),
         for (final p in a.pendencias)
           _LinhaRegra(
             regra: 'R4',
@@ -241,6 +266,7 @@ class _SecaoAnalise extends StatelessWidget {
               texto: 'Média mín. ${fmtNum(a.mediaMinima)} • Freq. mín. ${fmtPct(a.frequenciaMinima)}',
               cor: Cores.texto,
               fundo: Cores.cinzaClaro),
+          EtiquetaPequena(texto: 'Até ${a.atrasosMaximos} sem entrega', cor: Cores.texto, fundo: Cores.cinzaClaro),
           EtiquetaPequena(texto: 'Registros v${a.versaoRegistros}', cor: Cores.texto, fundo: Cores.cinzaClaro),
         ]),
         const SizedBox(height: 14),
@@ -256,7 +282,9 @@ class _SecaoAnalise extends StatelessWidget {
     }
     final partes = <String>[];
     for (final v in ev.values) {
-      if (v is Map) {
+      if (v is Map && v['indicador'] == 'entregas') {
+        partes.add('${v['valor']} atividades vencidas sem entrega > limite de ${v['limite']}');
+      } else if (v is Map) {
         final ind = v['indicador'] == 'media' ? 'Média' : 'Frequência';
         final valor = (v['valor'] as num).toDouble();
         final limite = (v['limite'] as num).toDouble();
@@ -271,9 +299,10 @@ class _SecaoAnalise extends StatelessWidget {
 }
 
 class _LinhaRegra extends StatelessWidget {
-  const _LinhaRegra({required this.regra, required this.evidencia});
+  const _LinhaRegra({required this.regra, required this.evidencia, this.fc});
   final String regra;
   final String evidencia;
+  final double? fc;
 
   @override
   Widget build(BuildContext context) {
@@ -295,6 +324,14 @@ class _LinhaRegra extends StatelessWidget {
             Text(evidencia, style: const TextStyle(color: Cores.textoSuave)),
           ]),
         ),
+        if (fc != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: Tooltip(
+              message: 'Fator de certeza desta conclusão',
+              child: EtiquetaPequena(texto: 'FC ${fmtCerteza(fc!)}', cor: Cores.texto, fundo: Cores.cinzaClaro),
+            ),
+          ),
       ]),
     );
   }
@@ -448,10 +485,16 @@ class _SecaoRevisaoState extends State<_SecaoRevisao> {
 
 // --------------------------------------------------------------- registros
 class _SecaoRegistros extends StatefulWidget {
-  const _SecaoRegistros({required this.r, required this.aoEditarNota, required this.aoPresenca});
+  const _SecaoRegistros({
+    required this.r,
+    required this.aoEditarNota,
+    required this.aoPresenca,
+    required this.aoEntrega,
+  });
   final Registros r;
   final void Function(RegistroNota) aoEditarNota;
   final void Function(int, bool) aoPresenca;
+  final void Function(int, bool) aoEntrega;
 
   @override
   State<_SecaoRegistros> createState() => _SecaoRegistrosState();
@@ -483,6 +526,33 @@ class _SecaoRegistrosState extends State<_SecaoRegistros> {
                 tooltip: n.valor == null ? 'Lançar nota' : 'Corrigir nota',
                 icon: const Icon(Icons.edit_outlined),
                 onPressed: () => widget.aoEditarNota(n),
+              ),
+            ]),
+          ),
+        const Divider(),
+        const Text('Atividades', style: TextStyle(fontWeight: FontWeight.w700)),
+        if (r.atividades.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('Nenhuma atividade nesta turma.', style: TextStyle(color: Cores.textoSuave)),
+          ),
+        for (final a in r.atividades)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(a.titulo),
+                  Text(
+                    'Prazo ${fmtData(a.prazo)}${a.entregueEm != null ? ' • entregue em ${fmtData(a.entregueEm!)}' : ''}',
+                    style: const TextStyle(color: Cores.textoSuave, fontSize: 12.5),
+                  ),
+                ]),
+              ),
+              ChipSituacao(situacao: a.situacao),
+              Tooltip(
+                message: 'Marcar como entregue',
+                child: Checkbox(value: a.entregue, onChanged: (v) => widget.aoEntrega(a.atividadeId, v ?? false)),
               ),
             ]),
           ),
@@ -603,7 +673,7 @@ class _SecaoHistorico extends StatelessWidget {
               title: Text('#${a.id} • ${fmtDataHora(a.criadoEm)}'),
               subtitle: Text(
                 'Média ${fmtNum(a.media)} • Freq. ${fmtPct(a.frequencia)} • '
-                '${a.regras.isEmpty ? 'sem regras' : a.regras.join(', ')} • v${a.versaoRegistros}'
+                '${a.regras.isEmpty ? 'sem regras' : a.regras.join(', ')} • certeza ${fmtCerteza(a.certeza)} • v${a.versaoRegistros}'
                 '${a.revisoes.isEmpty ? '' : ' • ${a.revisoes.length} revisão(ões)'}',
               ),
               trailing: ChipAcompanhamento(prioridade: a.prioridade),
@@ -622,7 +692,11 @@ class _SecaoHistorico extends StatelessWidget {
         for (final h in alteracoes)
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(h.tipo == 'nota' ? Icons.edit_note : Icons.how_to_reg_outlined),
+            leading: Icon(switch (h.tipo) {
+              'nota' => Icons.edit_note,
+              'entrega' => Icons.assignment_turned_in_outlined,
+              _ => Icons.how_to_reg_outlined,
+            }),
             title: Text('${h.referencia}: ${h.anterior ?? 'sem registro'} → ${h.novo}'),
             subtitle: Text('${h.autor} • ${fmtDataHora(h.criadoEm)}'),
           ),

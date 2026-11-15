@@ -1,4 +1,4 @@
-"""Leitura e correção de notas e presenças (RF03)."""
+"""Leitura e correção de notas, presenças e entregas (RF03)."""
 
 from __future__ import annotations
 
@@ -6,9 +6,28 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import (Aula, Avaliacao, HistoricoAlteracao, Matricula, Nota,
-                      Presenca, Usuario, agora)
-from ..motor import Fatos, NotaFato, PresencaFato, fmt_num
+from datetime import date
+
+from .. import config
+from ..models import (Atividade, Aula, Avaliacao, Entrega, HistoricoAlteracao,
+                      Matricula, Nota, Presenca, Usuario, agora)
+from ..motor import EntregaFato, Fatos, NotaFato, PresencaFato, fmt_num
+
+
+def situacao_entrega(prazo: str, entregue_em: str | None, hoje: date) -> str:
+    """entregue | entregue_atraso | atrasada | aberta."""
+    if entregue_em is not None:
+        return "entregue" if entregue_em <= prazo else "entregue_atraso"
+    return "atrasada" if date.fromisoformat(prazo) < hoje else "aberta"
+
+
+def _entregas_por_atividade(db: Session, matricula_id: int) -> dict[int, Entrega]:
+    ents = db.scalars(select(Entrega).where(Entrega.matricula_id == matricula_id))
+    return {e.atividade_id: e for e in ents}
+
+
+def _fmt_data(iso: str) -> str:
+    return f"{iso[8:10]}/{iso[5:7]}"
 
 
 def _notas_por_avaliacao(db: Session, matricula_id: int) -> dict[int, Nota]:
@@ -25,6 +44,8 @@ def montar_fatos(db: Session, m: Matricula) -> Fatos:
     """Cópia fixa dos registros da matrícula naquele momento."""
     notas = _notas_por_avaliacao(db, m.id)
     pres = _presencas_por_aula(db, m.id)
+    ents = _entregas_por_atividade(db, m.id)
+    hoje = config.hoje()
     return Fatos(
         matricula=m.codigo,
         versao_registros=m.versao_registros,
@@ -39,6 +60,12 @@ def montar_fatos(db: Session, m: Matricula) -> Fatos:
                 aula=f"Aula {a.ordem} ({a.data})", unidades=a.unidades,
                 presente=pres[a.id].presente if a.id in pres else None)
             for a in m.turma.aulas),
+        entregas=tuple(
+            EntregaFato(
+                atividade=a.titulo, prazo=a.prazo,
+                situacao=situacao_entrega(
+                    a.prazo, ents[a.id].entregue_em if a.id in ents else None, hoje))
+            for a in m.turma.atividades),
     )
 
 
@@ -50,12 +77,16 @@ def fatos_como_dict(f: Fatos) -> dict:
                    "valor": n.valor, "nota_maxima": n.nota_maxima} for n in f.notas],
         "presencas": [{"aula": p.aula, "unidades": p.unidades, "presente": p.presente}
                       for p in f.presencas],
+        "entregas": [{"atividade": e.atividade, "prazo": e.prazo, "situacao": e.situacao}
+                     for e in f.entregas],
     }
 
 
 def registros_da_matricula(db: Session, m: Matricula) -> dict:
     notas = _notas_por_avaliacao(db, m.id)
     pres = _presencas_por_aula(db, m.id)
+    ents = _entregas_por_atividade(db, m.id)
+    hoje = config.hoje()
     return {
         "matricula_id": m.id,
         "codigo": m.codigo,
@@ -75,6 +106,13 @@ def registros_da_matricula(db: Session, m: Matricula) -> dict:
              "unidades": a.unidades,
              "presente": pres[a.id].presente if a.id in pres else None}
             for a in m.turma.aulas],
+        "atividades": [
+            {"atividade_id": a.id, "titulo": a.titulo, "descricao": a.descricao,
+             "prazo": a.prazo,
+             "entregue_em": ents[a.id].entregue_em if a.id in ents else None,
+             "situacao": situacao_entrega(
+                 a.prazo, ents[a.id].entregue_em if a.id in ents else None, hoje)}
+            for a in m.turma.atividades],
     }
 
 
@@ -137,6 +175,29 @@ def salvar_presenca(db: Session, m: Matricula, aula_id: int, presente: bool,
     m.versao_registros += 1
     _registrar_historico(db, m, autor, "presenca", f"Aula {aula.ordem} ({aula.data})",
                          anterior, rotulo(presente))
+    db.commit()
+
+
+def salvar_entrega(db: Session, m: Matricula, atividade_id: int, entregue: bool,
+                   autor: Usuario) -> None:
+    """Marca ou desmarca a entrega. Entrega marcada recebe a data de hoje."""
+    atv = db.get(Atividade, atividade_id)
+    if atv is None or atv.turma_id != m.turma_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            "Atividade não pertence à turma desta matrícula.")
+    ent = db.scalar(select(Entrega).where(Entrega.matricula_id == m.id,
+                                          Entrega.atividade_id == atividade_id))
+    if entregue and ent is None:
+        data = config.hoje().isoformat()
+        db.add(Entrega(matricula_id=m.id, atividade_id=atividade_id, entregue_em=data))
+        anterior, novo = "pendente", f"entregue em {_fmt_data(data)}"
+    elif not entregue and ent is not None:
+        anterior, novo = f"entregue em {_fmt_data(ent.entregue_em)}", "pendente"
+        db.delete(ent)
+    else:
+        return
+    m.versao_registros += 1
+    _registrar_historico(db, m, autor, "entrega", atv.titulo, anterior, novo)
     db.commit()
 
 

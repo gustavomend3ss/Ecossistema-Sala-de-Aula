@@ -286,7 +286,14 @@ class _ItemResposta extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(color: Cores.fundo, borderRadius: BorderRadius.circular(10)),
             child: Row(children: [
-              Icon(d.rotulo == 'Média' ? Icons.description_outlined : Icons.person_outline, size: 22),
+              Icon(
+                switch (d.rotulo) {
+                  'Média' => Icons.description_outlined,
+                  'Frequência' => Icons.person_outline,
+                  _ => Icons.assignment_late_outlined,
+                },
+                size: 22,
+              ),
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(d.rotulo, style: const TextStyle(fontSize: 12.5)),

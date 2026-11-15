@@ -19,7 +19,8 @@ from .registros import fatos_como_dict, montar_fatos
 def criterios_da_turma(m: Matricula) -> Criterios:
     c = m.turma.criterio
     return Criterios(versao=c.versao, media_minima=c.media_minima,
-                     frequencia_minima=c.frequencia_minima)
+                     frequencia_minima=c.frequencia_minima,
+                     atrasos_maximos=c.atrasos_maximos)
 
 
 def ultima_analise(db: Session, matricula_id: int) -> Analise | None:
@@ -78,6 +79,9 @@ def executar_analise(db: Session, m: Matricula, solicitante: Usuario,
         frequencia=resultado.frequencia,
         presencas=resultado.presencas,
         unidades_consideradas=resultado.unidades_consideradas,
+        atividades_vencidas=resultado.atividades_vencidas,
+        atividades_sem_entrega=resultado.atividades_sem_entrega,
+        certeza=resultado.certeza,
         prioridade=resultado.prioridade,
         regras=regras,
         acionadas=acionadas,
@@ -95,6 +99,10 @@ def executar_analise(db: Session, m: Matricula, solicitante: Usuario,
         "frequencia_minima": criterios.frequencia_minima,
         "presencas": resultado.presencas,
         "unidades_consideradas": resultado.unidades_consideradas,
+        "atividades_vencidas": resultado.atividades_vencidas,
+        "atividades_sem_entrega": resultado.atividades_sem_entrega,
+        "atrasos_maximos": criterios.atrasos_maximos,
+        "grau_de_certeza": resultado.certeza,
         "regras": [r for r in resultado.regras],
         "pendencias": [p.como_dict() for p in resultado.pendencias],
         "motivo_estruturado": motivo,
@@ -128,6 +136,9 @@ def analise_como_dict(a: Analise, m: Matricula) -> dict:
         "frequencia": a.frequencia,
         "presencas": a.presencas,
         "unidades_consideradas": a.unidades_consideradas,
+        "atividades_vencidas": a.atividades_vencidas,
+        "atividades_sem_entrega": a.atividades_sem_entrega,
+        "certeza": a.certeza,
         "prioridade": a.prioridade,
         "regras": a.regras,
         "acionadas": a.acionadas,
@@ -140,6 +151,7 @@ def analise_como_dict(a: Analise, m: Matricula) -> dict:
             "versao": a.versao_criterios,
             "media_minima": a.criterio.media_minima,
             "frequencia_minima": a.criterio.frequencia_minima,
+            "atrasos_maximos": a.criterio.atrasos_maximos,
         },
         "revisoes": [
             {"id": r.id, "autor": r.autor.nome, "decisao": r.decisao,

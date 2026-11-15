@@ -93,6 +93,7 @@ class ChipAcompanhamento extends StatelessWidget {
           texto = Cores.vermelho;
         case 'alerta_media':
         case 'alerta_frequencia':
+        case 'alerta_entregas':
           fundo = Cores.ambarClaro;
           texto = Cores.ambar;
         case 'conferir_dados':
@@ -304,5 +305,55 @@ class Cartao extends StatelessWidget {
       ),
       child: child,
     );
+  }
+}
+
+/// Situação de uma entrega. Texto sempre visível, cor só reforça.
+class ChipSituacao extends StatelessWidget {
+  const ChipSituacao({super.key, required this.situacao});
+  final String situacao;
+
+  @override
+  Widget build(BuildContext context) {
+    final (Color cor, Color fundo) = switch (situacao) {
+      'entregue' => (Cores.verde, Cores.verdeClaro),
+      'entregue_atraso' => (Cores.ambar, Cores.ambarClaro),
+      'atrasada' => (Cores.vermelho, Cores.vermelhoClaro),
+      _ => (Cores.azul, Cores.azulClaro),
+    };
+    return EtiquetaPequena(texto: rotuloSituacao[situacao] ?? situacao, cor: cor, fundo: fundo);
+  }
+}
+
+/// Grau de certeza da necessidade de acompanhamento (fator de certeza, 0 a 1).
+class BarraCerteza extends StatelessWidget {
+  const BarraCerteza({super.key, required this.valor});
+  final double valor;
+
+  @override
+  Widget build(BuildContext context) {
+    final cor = valor >= 0.8 ? Cores.vermelho : (valor >= 0.5 ? Cores.ambar : Cores.textoSuave);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        const Expanded(
+          child: Text('Grau de certeza da necessidade de acompanhamento',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+        ),
+        Text(fmtCerteza(valor), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: cor)),
+      ]),
+      const SizedBox(height: 6),
+      LinearProgressIndicator(
+        value: valor,
+        minHeight: 8,
+        borderRadius: BorderRadius.circular(4),
+        color: cor,
+        backgroundColor: Cores.cinzaClaro,
+      ),
+      const SizedBox(height: 4),
+      const Text(
+        'Fatores de certeza (modelo MYCIN): cada alerta independente soma evidência, sem passar de 1.',
+        style: TextStyle(color: Cores.textoSuave, fontSize: 12),
+      ),
+    ]);
   }
 }

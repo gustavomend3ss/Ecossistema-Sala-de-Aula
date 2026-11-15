@@ -57,6 +57,22 @@ class _TurmaViewState extends State<TurmaView> {
     mostrarMensagem(context, erro ?? 'Nota salva. A análise anterior fica no histórico.', erro: erro != null);
   }
 
+  Future<void> _novaAtividade() async {
+    final dados = await dialogoAtividade(context);
+    if (dados == null) return;
+    final erro = await _vm.criarAtividade(dados.titulo, dados.prazo, dados.descricao);
+    if (mounted) mostrarMensagem(context, erro ?? 'Atividade criada.', erro: erro != null);
+  }
+
+  Future<void> _entrega(EstudanteLinha e, AtividadeResumo a, bool entregue) async {
+    final erro = await _vm.marcarEntrega(e.matriculaId, a.id, entregue);
+    if (mounted) {
+      mostrarMensagem(context,
+          erro ?? (entregue ? 'Entrega registrada com a data de hoje.' : 'Entrega desmarcada.'),
+          erro: erro != null);
+    }
+  }
+
   Future<void> _presenca(EstudanteLinha e, int aulaId, bool presente) async {
     final erro = await _vm.salvarPresenca(e.matriculaId, aulaId, presente);
     if (erro != null && mounted) mostrarMensagem(context, erro, erro: true);
@@ -96,7 +112,7 @@ class _TurmaViewState extends State<TurmaView> {
           const SizedBox(height: 20),
           _Abas(
             indice: _vm.aba,
-            rotulos: const ['Estudantes', 'Notas', 'Frequência', 'Critérios'],
+            rotulos: const ['Estudantes', 'Notas', 'Frequência', 'Atividades', 'Critérios'],
             aoTrocar: _vm.trocarAba,
           ),
           const SizedBox(height: 18),
@@ -113,6 +129,12 @@ class _TurmaViewState extends State<TurmaView> {
                   final msg = await _vm.todosPresentes(aulaId);
                   if (msg != null && context.mounted) mostrarMensagem(context, msg);
                 },
+              ),
+            3 => _AbaAtividades(
+                turma: t,
+                salvando: _vm.salvando,
+                aoCriar: _novaAtividade,
+                aoMarcar: _entrega,
               ),
             _ => _AbaCriterios(criterios: t.criterios),
           },
@@ -189,7 +211,8 @@ class _AbaEstudantes extends StatelessWidget {
           child: _CartaoInfo(
             icone: Icons.description_outlined,
             titulo: 'Critérios utilizados',
-            linha: '${c.versao} • Média ${fmtNum(c.mediaMinima)} • Frequência ${fmtPct(c.frequenciaMinima)}',
+            linha: '${c.versao} • Média ${fmtNum(c.mediaMinima)} • Frequência ${fmtPct(c.frequenciaMinima)} • '
+                'até ${c.atrasosMaximos} sem entrega',
             detalhe: 'Configuração aplicada para esta turma.',
           ),
         ),
@@ -224,6 +247,7 @@ class _AbaEstudantes extends StatelessWidget {
               DataColumn(label: Text('Média', style: cab)),
               DataColumn(label: Text('Frequência', style: cab)),
               DataColumn(label: Text('Completude', style: cab)),
+              DataColumn(label: Text('Entregas', style: cab)),
               DataColumn(label: Text('Acompanhamento', style: cab)),
               DataColumn(label: Text('')),
             ],
@@ -243,6 +267,7 @@ class _AbaEstudantes extends StatelessWidget {
                   DataCell(Text(fmtNum(e.media))),
                   DataCell(Text(fmtPct(e.frequencia))),
                   DataCell(Text(e.completude == 'completa' ? 'Completa' : 'Parcial')),
+                  DataCell(_TextoEntregas(e: e, limite: turma.criterios.atrasosMaximos)),
                   DataCell(ChipAcompanhamento(
                     prioridade: e.acompanhamento?.prioridade,
                     desatualizada: e.acompanhamento?.desatualizada ?? false,
@@ -272,6 +297,8 @@ class _AbaEstudantes extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Média ${fmtNum(e.media)} • Frequência ${fmtPct(e.frequencia)} • '
                   '${e.completude == 'completa' ? 'Completa' : 'Parcial'}'),
+              const SizedBox(height: 4),
+              _TextoEntregas(e: e, limite: turma.criterios.atrasosMaximos),
               const SizedBox(height: 8),
               ChipAcompanhamento(
                 prioridade: e.acompanhamento?.prioridade,
@@ -539,6 +566,14 @@ class _AbaCriterios extends StatelessWidget {
             child: CartaoIndicador(
                 titulo: 'Frequência mínima', valor: fmtPct(c.frequenciaMinima), icone: Icons.person_outline),
           ),
+          SizedBox(
+            width: 260,
+            child: CartaoIndicador(
+                titulo: 'Sem entrega tolerado',
+                valor: '${c.atrasosMaximos}',
+                icone: Icons.assignment_late_outlined,
+                subtitulo: 'Acima disso, R6'),
+          ),
         ]),
       ),
       const SizedBox(height: 16),
@@ -557,11 +592,188 @@ class _AbaCriterios extends StatelessWidget {
             ),
           const SizedBox(height: 8),
           const AvisoInfo(
-            texto: 'Ordem de inferência: R4 (completude) antes das demais; R1 e R2 viram fatos; '
-                'R3 é derivada por encadeamento para a frente; R5 cuida do histórico.',
+            texto: 'Ordem de inferência: R4 (completude) antes das demais; R1, R2 e R6 viram fatos; '
+                'R3 é derivada por encadeamento para a frente; R5 cuida do histórico. Fatores de certeza: '
+                'R1 0,7 • R2 0,6 • R3 0,9 • R6 0,5.',
           ),
         ]),
       ),
     ]);
+  }
+}
+
+
+class _TextoEntregas extends StatelessWidget {
+  const _TextoEntregas({required this.e, required this.limite});
+  final EstudanteLinha e;
+  final int limite;
+
+  @override
+  Widget build(BuildContext context) {
+    if (e.atividadesVencidas == 0) {
+      return const Text('Nenhuma vencida', style: TextStyle(color: Cores.textoSuave));
+    }
+    final n = e.atividadesSemEntrega;
+    final acima = n > limite;
+    return Text(
+      n == 0 ? 'Em dia' : '$n sem entrega',
+      style: TextStyle(fontWeight: acima ? FontWeight.w700 : FontWeight.w400,
+          color: acima ? Cores.vermelho : Cores.texto),
+    );
+  }
+}
+
+// ------------------------------------------------------------ atividades
+class _AbaAtividades extends StatelessWidget {
+  const _AbaAtividades({
+    required this.turma,
+    required this.salvando,
+    required this.aoCriar,
+    required this.aoMarcar,
+  });
+
+  final TurmaDetalhe turma;
+  final Set<String> salvando;
+  final VoidCallback aoCriar;
+  final void Function(EstudanteLinha, AtividadeResumo, bool) aoMarcar;
+
+  @override
+  Widget build(BuildContext context) {
+    final vencidas = turma.atividades.where((a) => a.vencida).toList();
+    final semEntrega = vencidas.fold<int>(0, (s, a) => s + a.semEntrega);
+    final esperadas = vencidas.fold<int>(0, (s, a) => s + a.total);
+    final taxa = esperadas == 0 ? null : (esperadas - semEntrega) * 100 / esperadas;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Wrap(spacing: 16, runSpacing: 16, children: [
+        SizedBox(
+          width: 260,
+          child: CartaoIndicador(
+              titulo: 'Atividades vencidas', valor: '${vencidas.length}', icone: Icons.event_busy_outlined,
+              subtitulo: '${turma.atividades.length - vencidas.length} em aberto'),
+        ),
+        SizedBox(
+          width: 260,
+          child: CartaoIndicador(
+              titulo: 'Entregas esperadas que faltam', valor: '$semEntrega',
+              icone: Icons.assignment_late_outlined, alerta: semEntrega > 0,
+              subtitulo: 'Somando todas as vencidas'),
+        ),
+        SizedBox(
+          width: 260,
+          child: CartaoIndicador(
+              titulo: 'Taxa de entrega', valor: taxa == null ? '—' : fmtPct(taxa.roundToDouble()),
+              icone: Icons.task_alt, subtitulo: 'Só atividades vencidas'),
+        ),
+      ]),
+      const SizedBox(height: 16),
+      Secao(
+        titulo: 'Radar de entregas',
+        subtitulo: 'Quem entregou, quem atrasou e o que ainda está em aberto. Toque para marcar.',
+        acao: FilledButton.icon(
+          onPressed: aoCriar,
+          icon: const Icon(Icons.add, size: 20),
+          label: const Text('Nova atividade'),
+        ),
+        child: turma.atividades.isEmpty
+            ? const EstadoVazio(texto: 'Nenhuma atividade cadastrada nesta turma.', icone: Icons.assignment_outlined)
+            : Column(children: [
+                for (final a in turma.atividades) _CartaoAtividade(
+                  atividade: a,
+                  turma: turma,
+                  salvando: salvando,
+                  aoMarcar: aoMarcar,
+                ),
+              ]),
+      ),
+    ]);
+  }
+}
+
+class _CartaoAtividade extends StatelessWidget {
+  const _CartaoAtividade({
+    required this.atividade,
+    required this.turma,
+    required this.salvando,
+    required this.aoMarcar,
+  });
+
+  final AtividadeResumo atividade;
+  final TurmaDetalhe turma;
+  final Set<String> salvando;
+  final void Function(EstudanteLinha, AtividadeResumo, bool) aoMarcar;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = atividade;
+    final partes = [
+      (a.noPrazo, Cores.verde, 'no prazo'),
+      (a.comAtraso, Cores.ambar, 'com atraso'),
+      (a.semEntrega, Cores.vermelho, 'sem entrega'),
+      (a.emAberto, Cores.cinzaClaro, 'em aberto'),
+    ];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Cores.borda),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          title: Row(children: [
+            Expanded(child: Text(a.titulo, style: const TextStyle(fontWeight: FontWeight.w700))),
+            EtiquetaPequena(
+              texto: a.vencida ? 'Venceu em ${fmtData(a.prazo)}' : 'Prazo ${fmtData(a.prazo)}',
+              cor: a.vencida ? Cores.texto : Cores.azul,
+              fundo: a.vencida ? Cores.cinzaClaro : Cores.azulClaro,
+            ),
+          ]),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: SizedBox(
+                  height: 10,
+                  child: Row(children: [
+                    for (final (n, cor, _) in partes)
+                      if (n > 0) Expanded(flex: n, child: Container(color: cor)),
+                  ]),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                partes.where((p) => p.$1 > 0).map((p) => '${p.$1} ${p.$3}').join(' • '),
+                style: const TextStyle(color: Cores.textoSuave, fontSize: 12.5),
+              ),
+            ]),
+          ),
+          children: [
+            for (final e in turma.estudantes)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(children: [
+                  Expanded(child: Text('${e.codigo} • ${e.aluno}')),
+                  ChipSituacao(situacao: e.entregas['${a.id}'] ?? 'aberta'),
+                  const SizedBox(width: 8),
+                  if (salvando.contains('e${e.matriculaId}-${a.id}'))
+                    const SizedBox(width: 40, height: 20,
+                        child: Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))))
+                  else
+                    Tooltip(
+                      message: 'Marcar como entregue',
+                      child: Checkbox(
+                        value: (e.entregas['${a.id}'] ?? '').startsWith('entregue'),
+                        onChanged: (v) => aoMarcar(e, a, v ?? false),
+                      ),
+                    ),
+                ]),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -6,9 +6,12 @@ servidor; o aplicativo nunca decide sozinho o que o usuário pode ver.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
+import json
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, status
@@ -18,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from . import config
 from .database import get_db
-from .models import Matricula, Sessao, Usuario, VinculoProfessorTurma
+from .models import Matricula, Usuario, VinculoProfessorTurma
 
 _ITERACOES = 200_000
 
@@ -38,15 +41,38 @@ def conferir_senha(senha: str, armazenado: str) -> bool:
         return False
 
 
-def criar_sessao(db: Session, usuario: Usuario) -> Sessao:
-    sessao = Sessao(
-        token=secrets.token_urlsafe(32),
-        usuario_id=usuario.id,
-        expira_em=datetime.now(timezone.utc) + timedelta(hours=config.SESSAO_HORAS),
-    )
-    db.add(sessao)
-    db.commit()
-    return sessao
+def _b64(dados: bytes) -> str:
+    return base64.urlsafe_b64encode(dados).rstrip(b"=").decode()
+
+
+def _assinar(carga: str) -> str:
+    return _b64(hmac.new(config.SECRET_KEY.encode(), carga.encode(), hashlib.sha256).digest())
+
+
+def criar_token(usuario: Usuario) -> tuple[str, datetime]:
+    """Token assinado com HMAC-SHA256: id do usuário + validade.
+
+    Não fica guardado no banco. Qualquer instância da API confere a assinatura
+    sozinha, o que permite rodar em funções sem estado (Vercel).
+    """
+    expira = datetime.now(timezone.utc) + timedelta(hours=config.SESSAO_HORAS)
+    carga = _b64(json.dumps({"uid": usuario.id, "exp": int(expira.timestamp()),
+                             "n": secrets.token_hex(4)}).encode())
+    return f"{carga}.{_assinar(carga)}", expira
+
+
+def ler_token(token: str) -> int | None:
+    """Devolve o id do usuário, ou None se o token for inválido ou vencido."""
+    try:
+        carga, assinatura = token.split(".")
+        if not hmac.compare_digest(assinatura, _assinar(carga)):
+            return None
+        dados = json.loads(base64.urlsafe_b64decode(carga + "=" * (-len(carga) % 4)))
+        if int(dados["exp"]) < time.time():
+            return None
+        return int(dados["uid"])
+    except (ValueError, KeyError, TypeError):
+        return None
 
 
 _bearer = HTTPBearer(auto_error=False)
@@ -70,17 +96,11 @@ def usuario_atual(
 ) -> Usuario:
     if cred is None:
         raise NAO_AUTENTICADO
-    sessao = db.get(Sessao, cred.credentials)
-    if sessao is None:
+    uid = ler_token(cred.credentials)
+    usuario = db.get(Usuario, uid) if uid is not None else None
+    if usuario is None:
         raise NAO_AUTENTICADO
-    expira = sessao.expira_em
-    if expira.tzinfo is None:   # SQLite devolve datetime sem fuso
-        expira = expira.replace(tzinfo=timezone.utc)
-    if expira < datetime.now(timezone.utc):
-        db.delete(sessao)
-        db.commit()
-        raise NAO_AUTENTICADO
-    return sessao.usuario
+    return usuario
 
 
 def exigir_professor(usuario: Usuario = Depends(usuario_atual)) -> Usuario:

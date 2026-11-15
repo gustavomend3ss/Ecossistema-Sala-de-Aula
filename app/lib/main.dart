@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'config.dart';
 import 'data/api_client.dart';
@@ -22,6 +23,13 @@ class EcossistemaApp extends StatelessWidget {
       title: 'FAINOR • Gestão Acadêmica',
       debugShowCheckedModeBanner: false,
       theme: temaFainor(),
+      locale: const Locale('pt', 'BR'),
+      supportedLocales: const [Locale('pt', 'BR')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       home: ListenableBuilder(
         listenable: estado,
         builder: (context, _) {

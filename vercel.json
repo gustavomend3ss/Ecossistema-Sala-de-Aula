@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "bash scripts/vercel-install.sh",
+  "buildCommand": "bash scripts/vercel-build.sh",
+  "outputDirectory": "app/build/web",
+  "functions": {
+    "api/index.py": {
+      "includeFiles": "backend/app/**",
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" }
+  ]
+}

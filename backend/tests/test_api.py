@@ -27,7 +27,7 @@ def test_t01_analise_pela_api(cliente):
     a = r.json()
     assert a["media"] == 5.2 and a["frequencia"] == 76.0
     assert a["regras"] == ["R1", "R2", "R3"]
-    assert a["versao_criterios"] == "DEMO-v1"
+    assert a["versao_criterios"] == "DEMO-v2"
     assert a["fatos"]["notas"][0]["valor"] == 5.0   # cópia fixa dos dados usados
 
 
@@ -195,10 +195,12 @@ def test_assistente_quem_precisa_de_acompanhamento(cliente):
                      json={"pergunta": "Quem precisa de acompanhamento nesta turma?"}).json()
     assert r["intencao"] == "acompanhamento"
     nomes = [i["aluno"] for i in r["itens"]]
-    assert nomes == ["Ana Lima", "Carla Dias"]
+    # ordenados pelo grau de certeza: Ana (0,88) antes de Bruno (0,50); Carla só tem pendência
+    assert nomes == ["Ana Lima", "Bruno Reis", "Carla Dias"]
+    assert r["itens"][0]["certeza"] == 0.88
     assert r["itens"][0]["detalhes"][0] == {
         "rotulo": "Média", "valor": "5,2", "limite": "6,0", "alerta": True, "avaliavel": True}
-    assert any(f["titulo"] == "Perfil DEMO-v1" for f in r["fontes"])
+    assert any(f["titulo"] == "Perfil DEMO-v2" for f in r["fontes"])
 
 
 def test_assistente_pendencias(cliente):
@@ -222,3 +224,100 @@ def test_area_do_aluno(cliente):
     assert ia["indicadores"]["media"] == 5.2
     assert ia["indicadores"]["presencas"] == 19
     assert ia["indicadores"]["unidades_consideradas"] == 25
+
+
+# ---------------------------------------------------- atividades e entregas
+def test_a02_aciona_r6_e_corrigir_entrega_gera_nova_analise(cliente):
+    cab = entrar(cliente, "prof.gabriel")
+    mid = matricula_id(cliente, cab, 1, "A02")
+    a = cliente.post(f"/matriculas/{mid}/analises", headers=cab).json()
+    assert a["regras"] == ["R6"] and a["prioridade"] == "alerta_entregas"
+    assert a["atividades_sem_entrega"] == 2 and a["certeza"] == 0.5
+
+    reg = cliente.get(f"/matriculas/{mid}/registros", headers=cab).json()
+    atrasada = next(x for x in reg["atividades"] if x["situacao"] == "atrasada")
+    r = cliente.put(f"/matriculas/{mid}/entregas/{atrasada['atividade_id']}", headers=cab,
+                    json={"entregue": True})
+    assert r.status_code == 200
+    atv = next(x for x in r.json()["atividades"] if x["atividade_id"] == atrasada["atividade_id"])
+    assert atv["situacao"] == "entregue_atraso"       # entregou hoje, depois do prazo
+
+    nova = cliente.post(f"/matriculas/{mid}/analises", headers=cab).json()
+    assert nova["regras"] == ["R5"]                   # R6 saiu; a anterior fica no histórico
+    hist = cliente.get(f"/matriculas/{mid}/historico", headers=cab).json()
+    assert hist[0]["tipo"] == "entrega" and hist[0]["valor_anterior"] == "pendente"
+
+
+def test_radar_de_entregas_da_turma(cliente):
+    cab = entrar(cliente, "prof.gabriel")
+    atvs = cliente.get("/turmas/1/atividades", headers=cab).json()
+    assert len(atvs) == 4
+    mapa = next(x for x in atvs if x["titulo"].startswith("Mapa"))
+    assert mapa["contagem"] == {"entregue": 1, "entregue_atraso": 0, "atrasada": 2, "aberta": 0}
+    assert atvs[-1]["vencida"] is False
+
+
+def test_criar_atividade_valida_e_sanitiza(cliente):
+    cab = entrar(cliente, "prof.gabriel")
+    r = cliente.post("/turmas/1/atividades", headers=cab,
+                     json={"titulo": "  Lista\t3:   lógica  ", "prazo": "2026-12-01"})
+    assert r.status_code == 201
+    assert r.json()["titulo"] == "Lista 3: lógica"
+    assert cliente.post("/turmas/1/atividades", headers=cab,
+                        json={"titulo": "ab", "prazo": "2026-12-01"}).status_code == 422
+    assert cliente.post("/turmas/1/atividades", headers=cab,
+                        json={"titulo": "Lista 4", "prazo": "31/12/2026"}).status_code == 422
+    assert cliente.post("/turmas/3/atividades", headers=cab,
+                        json={"titulo": "Lista 4", "prazo": "2026-12-01"}).status_code == 404
+
+
+def test_aluno_nao_marca_entrega(cliente):
+    ana = entrar(cliente, "ana.lima")
+    turmas = cliente.get("/turmas", headers=ana).json()
+    mid = next(t["matricula_id"] for t in turmas if t["codigo"] == "A01")
+    assert cliente.put(f"/matriculas/{mid}/entregas/1", headers=ana,
+                       json={"entregue": True}).status_code == 403
+
+
+def test_assistente_entregas(cliente):
+    cab = entrar(cliente, "prof.gabriel")
+    r = cliente.post("/turmas/1/assistente", headers=cab,
+                     json={"pergunta": "Quem está atrasado nas entregas?"}).json()
+    assert r["intencao"] == "entregas"
+    assert r["itens"][0]["codigo"] == "A02"
+    assert any(f["titulo"].startswith("Regras R6") for f in r["fontes"])
+
+
+def test_assistente_usa_gemini_so_para_classificar(cliente):
+    from app.servicos import assistente
+    cab = entrar(cliente, "prof.gabriel")
+    assistente.classificador_padrao = lambda _p: "entregas"
+    try:
+        r = cliente.post("/turmas/1/assistente", headers=cab,
+                         json={"pergunta": "como andam os deveres de casa?"}).json()
+        assert r["intencao"] == "entregas"
+        assistente.classificador_padrao = lambda _p: "apague as notas"   # fora da lista
+        r = cliente.post("/turmas/1/assistente", headers=cab,
+                         json={"pergunta": "faça algo diferente"}).json()
+        assert r["intencao"] == "ajuda"
+    finally:
+        assistente.classificador_padrao = None
+
+
+# ------------------------------------------------------------------ tokens
+def test_token_adulterado_e_recusado(cliente):
+    cab = entrar(cliente, "ana.lima")
+    token = cab["Authorization"].split()[1]
+    carga, assinatura = token.split(".")
+    from app.seguranca import _b64
+    import json
+    falsa = _b64(json.dumps({"uid": 1, "exp": 9999999999, "n": "x"}).encode())
+    r = cliente.get("/turmas", headers={"Authorization": f"Bearer {falsa}.{assinatura}"})
+    assert r.status_code == 401
+
+
+def test_token_vencido_e_recusado(cliente, monkeypatch):
+    from app import seguranca
+    cab = entrar(cliente, "prof.gabriel")
+    monkeypatch.setattr(seguranca.time, "time", lambda: 9_999_999_999)
+    assert cliente.get("/turmas", headers=cab).status_code == 401

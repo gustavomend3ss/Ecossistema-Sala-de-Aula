@@ -15,6 +15,8 @@ import re
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+from pydantic import BaseModel
+
 from .. import config
 from ..motor import fmt_num, fmt_pct
 
@@ -28,14 +30,10 @@ TERMOS_CAUSAIS = (
     "provavelmente", "talvez", "deve estar", "parece que",
 )
 
-ESQUEMA = {
-    "type": "OBJECT",
-    "properties": {
-        "texto": {"type": "STRING"},
-        "regras_citadas": {"type": "ARRAY", "items": {"type": "STRING"}},
-    },
-    "required": ["texto", "regras_citadas"],
-}
+class SinteseModelo(BaseModel):
+    """Formato estruturado que o Gemini deve devolver."""
+    texto: str
+    regras_citadas: list[str]
 
 
 @dataclass
@@ -49,7 +47,7 @@ def montar_prompt(fatos_motor: dict) -> str:
     return (
         "Você apoia um professor universitário. Reescreva o relatório abaixo em no máximo "
         "três frases simples, em português do Brasil. Use SOMENTE os números e regras do "
-        "relatório. Cite cada regra pelo código (R1, R2, R3, R4). Se houver pendência, diga "
+        "relatório. Cite cada regra pelo código (R1, R2, R3, R4, R6). Se houver pendência, diga "
         "que o indicador não pode ser avaliado. NÃO sugira causas para o desempenho do aluno, "
         "NÃO dê conselhos e NÃO decida aprovação.\n\n"
         f"RELATÓRIO (JSON):\n{json.dumps(fatos_motor, ensure_ascii=False)}"
@@ -57,28 +55,31 @@ def montar_prompt(fatos_motor: dict) -> str:
 
 
 def _chamar_gemini(prompt: str) -> str:
-    import httpx
+    """Chama o Gemini pelo SDK oficial (google-genai), pedindo JSON no esquema
+    SinteseModelo. O import fica aqui dentro para a API subir mesmo sem o
+    pacote instalado quando a síntese está desativada."""
+    from google import genai
+    from google.genai import types
 
-    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"{config.GEMINI_MODEL}:generateContent")
-    corpo = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0,
-            "responseMimeType": "application/json",
-            "responseSchema": ESQUEMA,
-        },
-    }
-    r = httpx.post(url, json=corpo, timeout=config.GEMINI_TIMEOUT,
-                   headers={"x-goog-api-key": config.GEMINI_API_KEY})
-    r.raise_for_status()
-    return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+    cliente = genai.Client(api_key=config.GEMINI_API_KEY)
+    resposta = cliente.models.generate_content(
+        model=config.GEMINI_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0,
+            response_mime_type="application/json",
+            response_schema=SinteseModelo,
+            http_options=types.HttpOptions(timeout=int(config.GEMINI_TIMEOUT * 1000)),
+        ),
+    )
+    return resposta.text or ""
 
 
 def _numeros_permitidos(f: dict) -> set[str]:
     valores: list[float] = []
     for chave in ("media", "frequencia", "media_minima", "frequencia_minima",
-                  "presencas", "unidades_consideradas"):
+                  "presencas", "unidades_consideradas", "atividades_vencidas",
+                  "atividades_sem_entrega", "atrasos_maximos", "grau_de_certeza"):
         v = f.get(chave)
         if v is not None:
             valores.append(float(v))
@@ -102,7 +103,7 @@ def verificar(texto: str, regras_citadas: list[str], f: dict) -> tuple[bool, str
             return False, f"síntese sugere causa ou suposição ('{termo}')"
 
     esperadas = set(f["regras"])
-    no_texto = set(re.findall(r"\bR[1-5]\b", texto))
+    no_texto = set(re.findall(r"\bR[1-6]\b", texto))
     citadas = no_texto | {r.strip().upper() for r in regras_citadas}
     if citadas - esperadas:
         return False, f"síntese cita regra não acionada: {sorted(citadas - esperadas)}"
@@ -112,7 +113,7 @@ def verificar(texto: str, regras_citadas: list[str], f: dict) -> tuple[bool, str
     if f["pendencias"] and not re.search(r"pend|não (pode ser |é )?avali", baixo):
         return False, "síntese omite a pendência"
 
-    limpo = re.sub(r"\bR[1-5]\b", " ", texto)
+    limpo = re.sub(r"\bR[1-6]\b", " ", texto)
     limpo = limpo.replace(f["versao_criterios"], " ")
     permitidos = _numeros_permitidos(f)
     for num in re.findall(r"\d+(?:[.,]\d+)?", limpo):

@@ -1,8 +1,9 @@
 """Validação das entradas da API (o FastAPI rejeita o que não bate)."""
 
+from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class LoginEntrada(BaseModel):
@@ -25,7 +26,7 @@ class RevisaoEntrada(BaseModel):
 
 
 class ConferenciaEntrada(BaseModel):
-    referencia: str = Field(pattern=r"^(avaliacao:\d+|aula:\d+|geral)$")
+    referencia: str = Field(pattern=r"^(avaliacao:\d+|aula:\d+|atividade:\d+|geral)$")
     mensagem: str = Field(min_length=5, max_length=1000)
 
 
@@ -35,3 +36,19 @@ class RespostaEntrada(BaseModel):
 
 class PerguntaEntrada(BaseModel):
     pergunta: str = Field(min_length=2, max_length=500)
+
+
+class AtividadeEntrada(BaseModel):
+    titulo: str = Field(min_length=3, max_length=120)
+    prazo: date
+    descricao: str = Field(default="", max_length=400)
+
+    @field_validator("titulo", "descricao")
+    @classmethod
+    def _limpar(cls, v: str) -> str:
+        # Sanitização: espaços extras e caracteres de controle saem antes de salvar
+        return " ".join("".join(c if c.isprintable() else " " for c in v).split())
+
+
+class EntregaEntrada(BaseModel):
+    entregue: bool

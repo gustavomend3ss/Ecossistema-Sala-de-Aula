@@ -2,7 +2,8 @@
 
 Entidades: usuário, turma, vínculo professor-turma, matrícula, avaliação,
 nota, aula, presença, critério, análise, revisão e pedido de conferência.
-Somam-se sessão (token de acesso) e histórico de alterações dos registros.
+No Bloco 3 entraram atividade e entrega (dor apontada no Bloco 1) e o
+histórico de alterações dos registros.
 """
 
 from __future__ import annotations
@@ -32,14 +33,6 @@ class Usuario(Base):
         CheckConstraint("perfil in ('professor','aluno')", name="ck_perfil"),)
 
 
-class Sessao(Base):
-    __tablename__ = "sessao"
-    token: Mapped[str] = mapped_column(String(100), primary_key=True)
-    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuario.id", ondelete="CASCADE"))
-    expira_em: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    usuario: Mapped[Usuario] = relationship()
-
-
 class Criterio(Base):
     """Perfil de critérios com versão (ex.: DEMO-v1). Troca sem mexer no código."""
     __tablename__ = "criterio"
@@ -48,6 +41,8 @@ class Criterio(Base):
     descricao: Mapped[str] = mapped_column(String(200), default="")
     media_minima: Mapped[float] = mapped_column(Float)
     frequencia_minima: Mapped[float] = mapped_column(Float)
+    # Atividades vencidas sem entrega toleradas antes da regra R6
+    atrasos_maximos: Mapped[int] = mapped_column(Integer, default=1)
     __table_args__ = (
         CheckConstraint("media_minima >= 0 and media_minima <= 10", name="ck_media_min"),
         CheckConstraint("frequencia_minima >= 0 and frequencia_minima <= 100", name="ck_freq_min"),
@@ -67,6 +62,8 @@ class Turma(Base):
         back_populates="turma", order_by="Avaliacao.ordem")
     aulas: Mapped[list["Aula"]] = relationship(
         back_populates="turma", order_by="Aula.ordem")
+    atividades: Mapped[list["Atividade"]] = relationship(
+        back_populates="turma", order_by="Atividade.prazo")
 
 
 class VinculoProfessorTurma(Base):
@@ -142,13 +139,35 @@ class Presenca(Base):
     __table_args__ = (UniqueConstraint("matricula_id", "aula_id"),)
 
 
+class Atividade(Base):
+    """Atividade com prazo (lista, trabalho, entrega de projeto)."""
+    __tablename__ = "atividade"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    turma_id: Mapped[int] = mapped_column(ForeignKey("turma.id", ondelete="CASCADE"))
+    titulo: Mapped[str] = mapped_column(String(120))
+    descricao: Mapped[str] = mapped_column(String(400), default="")
+    prazo: Mapped[str] = mapped_column(String(10))     # AAAA-MM-DD
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)
+    turma: Mapped[Turma] = relationship(back_populates="atividades")
+
+
+class Entrega(Base):
+    """Registro de que a matrícula entregou a atividade, e em que data."""
+    __tablename__ = "entrega"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    matricula_id: Mapped[int] = mapped_column(ForeignKey("matricula.id", ondelete="CASCADE"))
+    atividade_id: Mapped[int] = mapped_column(ForeignKey("atividade.id", ondelete="CASCADE"))
+    entregue_em: Mapped[str] = mapped_column(String(10))   # AAAA-MM-DD
+    __table_args__ = (UniqueConstraint("matricula_id", "atividade_id"),)
+
+
 class HistoricoAlteracao(Base):
     """Rastro de cada correção: quem mudou, quando, de quanto para quanto."""
     __tablename__ = "historico_alteracao"
     id: Mapped[int] = mapped_column(primary_key=True)
     matricula_id: Mapped[int] = mapped_column(ForeignKey("matricula.id", ondelete="CASCADE"))
     autor_id: Mapped[int] = mapped_column(ForeignKey("usuario.id"))
-    tipo: Mapped[str] = mapped_column(String(20))       # nota | presenca
+    tipo: Mapped[str] = mapped_column(String(20))       # nota | presenca | entrega
     referencia: Mapped[str] = mapped_column(String(120))
     valor_anterior: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
     valor_novo: Mapped[str] = mapped_column(String(40))
@@ -168,6 +187,9 @@ class Analise(Base):
     frequencia: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     presencas: Mapped[int] = mapped_column(Integer, default=0)
     unidades_consideradas: Mapped[int] = mapped_column(Integer, default=0)
+    atividades_vencidas: Mapped[int] = mapped_column(Integer, default=0)
+    atividades_sem_entrega: Mapped[int] = mapped_column(Integer, default=0)
+    certeza: Mapped[float] = mapped_column(Float, default=0.0)
     prioridade: Mapped[str] = mapped_column(String(30))
     regras: Mapped[list] = mapped_column(JSON)          # ["R1","R2","R3"]
     acionadas: Mapped[list] = mapped_column(JSON)       # evidências de cada regra

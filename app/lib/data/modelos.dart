@@ -30,19 +30,27 @@ class Usuario {
 }
 
 class Criterios {
-  Criterios({required this.versao, required this.descricao, required this.mediaMinima, required this.frequenciaMinima});
+  Criterios({
+    required this.versao,
+    required this.descricao,
+    required this.mediaMinima,
+    required this.frequenciaMinima,
+    required this.atrasosMaximos,
+  });
 
   factory Criterios.fromJson(Map<String, dynamic> j) => Criterios(
         versao: _str(j['versao']),
         descricao: _str(j['descricao']),
         mediaMinima: _num(j['media_minima']) ?? 0,
         frequenciaMinima: _num(j['frequencia_minima']) ?? 0,
+        atrasosMaximos: _int(j['atrasos_maximos']),
       );
 
   final String versao;
   final String descricao;
   final double mediaMinima;
   final double frequenciaMinima;
+  final int atrasosMaximos;
 }
 
 class Pendencia {
@@ -137,6 +145,42 @@ class AulaInfo {
   final int unidades;
 }
 
+/// Atividade com prazo e a contagem de situações das entregas da turma.
+class AtividadeResumo {
+  AtividadeResumo({
+    required this.id,
+    required this.titulo,
+    required this.descricao,
+    required this.prazo,
+    required this.vencida,
+    required this.contagem,
+    required this.total,
+  });
+
+  factory AtividadeResumo.fromJson(Map<String, dynamic> j) => AtividadeResumo(
+        id: _int(j['id']),
+        titulo: _str(j['titulo']),
+        descricao: _str(j['descricao']),
+        prazo: _str(j['prazo']),
+        vencida: j['vencida'] == true,
+        contagem: (j['contagem'] as Map? ?? {}).map((k, v) => MapEntry(k.toString(), _int(v))),
+        total: _int(j['total']),
+      );
+
+  final int id;
+  final String titulo;
+  final String descricao;
+  final String prazo;
+  final bool vencida;
+  final Map<String, int> contagem;
+  final int total;
+
+  int get noPrazo => contagem['entregue'] ?? 0;
+  int get comAtraso => contagem['entregue_atraso'] ?? 0;
+  int get semEntrega => contagem['atrasada'] ?? 0;
+  int get emAberto => contagem['aberta'] ?? 0;
+}
+
 class Acompanhamento {
   Acompanhamento({required this.analiseId, required this.prioridade, required this.regras, required this.desatualizada});
 
@@ -160,6 +204,9 @@ class EstudanteLinha {
     required this.aluno,
     required this.notas,
     required this.presencas,
+    required this.entregas,
+    required this.atividadesSemEntrega,
+    required this.atividadesVencidas,
     required this.media,
     required this.frequencia,
     required this.presencasCount,
@@ -176,6 +223,9 @@ class EstudanteLinha {
         aluno: _str(j['aluno']),
         notas: (j['notas'] as Map? ?? {}).map((k, v) => MapEntry(k.toString(), _num(v))),
         presencas: (j['presencas_por_aula'] as Map? ?? {}).map((k, v) => MapEntry(k.toString(), v as bool?)),
+        entregas: (j['entregas_por_atividade'] as Map? ?? {}).map((k, v) => MapEntry(k.toString(), _str(v))),
+        atividadesSemEntrega: _int(j['atividades_sem_entrega']),
+        atividadesVencidas: _int(j['atividades_vencidas']),
         media: _num(j['media']),
         frequencia: _num(j['frequencia']),
         presencasCount: _int(j['presencas']),
@@ -193,6 +243,9 @@ class EstudanteLinha {
   final String aluno;
   final Map<String, double?> notas;
   final Map<String, bool?> presencas;
+  final Map<String, String> entregas;
+  final int atividadesSemEntrega;
+  final int atividadesVencidas;
   final double? media;
   final double? frequencia;
   final int presencasCount;
@@ -215,6 +268,7 @@ class TurmaDetalhe {
     required this.criterios,
     required this.avaliacoes,
     required this.aulas,
+    required this.atividades,
     required this.estudantes,
   });
 
@@ -226,6 +280,7 @@ class TurmaDetalhe {
         criterios: Criterios.fromJson(Map<String, dynamic>.from(j['criterios'] as Map)),
         avaliacoes: _lista(j['avaliacoes'], AvaliacaoInfo.fromJson),
         aulas: _lista(j['aulas'], AulaInfo.fromJson),
+        atividades: _lista(j['atividades'], AtividadeResumo.fromJson),
         estudantes: _lista(j['estudantes'], EstudanteLinha.fromJson),
       );
 
@@ -236,6 +291,7 @@ class TurmaDetalhe {
   final Criterios criterios;
   final List<AvaliacaoInfo> avaliacoes;
   final List<AulaInfo> aulas;
+  final List<AtividadeResumo> atividades;
   final List<EstudanteLinha> estudantes;
 }
 
@@ -245,6 +301,9 @@ class Indicadores {
     required this.frequencia,
     required this.presencas,
     required this.unidadesConsideradas,
+    required this.atividadesVencidas,
+    required this.atividadesSemEntrega,
+    required this.taxaEntrega,
     required this.completude,
     required this.pendencias,
   });
@@ -254,6 +313,9 @@ class Indicadores {
         frequencia: _num(j['frequencia']),
         presencas: _int(j['presencas']),
         unidadesConsideradas: _int(j['unidades_consideradas']),
+        atividadesVencidas: _int(j['atividades_vencidas']),
+        atividadesSemEntrega: _int(j['atividades_sem_entrega']),
+        taxaEntrega: _num(j['taxa_entrega']),
         completude: _str(j['completude']),
         pendencias: _lista(j['pendencias'], Pendencia.fromJson),
       );
@@ -262,6 +324,9 @@ class Indicadores {
   final double? frequencia;
   final int presencas;
   final int unidadesConsideradas;
+  final int atividadesVencidas;
+  final int atividadesSemEntrega;
+  final double? taxaEntrega;
   final String completude;
   final List<Pendencia> pendencias;
 }
@@ -313,6 +378,32 @@ class RegistroAula {
   final bool? presente;
 }
 
+class RegistroAtividade {
+  RegistroAtividade({
+    required this.atividadeId,
+    required this.titulo,
+    required this.prazo,
+    required this.entregueEm,
+    required this.situacao,
+  });
+
+  factory RegistroAtividade.fromJson(Map<String, dynamic> j) => RegistroAtividade(
+        atividadeId: _int(j['atividade_id']),
+        titulo: _str(j['titulo']),
+        prazo: _str(j['prazo']),
+        entregueEm: j['entregue_em'] as String?,
+        situacao: _str(j['situacao']),
+      );
+
+  final int atividadeId;
+  final String titulo;
+  final String prazo;
+  final String? entregueEm;
+  final String situacao;
+
+  bool get entregue => entregueEm != null;
+}
+
 class Registros {
   Registros({
     required this.matriculaId,
@@ -324,6 +415,7 @@ class Registros {
     required this.versaoRegistros,
     required this.avaliacoes,
     required this.aulas,
+    required this.atividades,
     required this.indicadores,
   });
 
@@ -337,6 +429,7 @@ class Registros {
         versaoRegistros: _int(j['versao_registros']),
         avaliacoes: _lista(j['avaliacoes'], RegistroNota.fromJson),
         aulas: _lista(j['aulas'], RegistroAula.fromJson),
+        atividades: _lista(j['atividades'], RegistroAtividade.fromJson),
         indicadores: Indicadores.fromJson(Map<String, dynamic>.from(j['indicadores'] as Map)),
       );
 
@@ -349,23 +442,26 @@ class Registros {
   final int versaoRegistros;
   final List<RegistroNota> avaliacoes;
   final List<RegistroAula> aulas;
+  final List<RegistroAtividade> atividades;
   final Indicadores indicadores;
 }
 
 class RegraAcionada {
-  RegraAcionada({required this.regra, required this.corpo, required this.cabeca, required this.evidencia});
+  RegraAcionada({required this.regra, required this.corpo, required this.cabeca, required this.evidencia, required this.fc});
 
   factory RegraAcionada.fromJson(Map<String, dynamic> j) => RegraAcionada(
         regra: _str(j['regra']),
         corpo: (j['corpo'] as List? ?? []).map((e) => e.toString()).toList(),
         cabeca: _str(j['cabeca']),
         evidencia: Map<String, dynamic>.from(j['evidencia'] as Map? ?? {}),
+        fc: _num(j['fc']) ?? 1,
       );
 
   final String regra;
   final List<String> corpo;
   final String cabeca;
   final Map<String, dynamic> evidencia;
+  final double fc;
 }
 
 class Revisao {
@@ -398,6 +494,9 @@ class Analise {
     required this.frequencia,
     required this.presencas,
     required this.unidades,
+    required this.atividadesVencidas,
+    required this.atividadesSemEntrega,
+    required this.certeza,
     required this.prioridade,
     required this.regras,
     required this.acionadas,
@@ -407,6 +506,7 @@ class Analise {
     required this.sinteseStatus,
     required this.mediaMinima,
     required this.frequenciaMinima,
+    required this.atrasosMaximos,
     required this.revisoes,
   });
 
@@ -423,6 +523,9 @@ class Analise {
       frequencia: _num(j['frequencia']),
       presencas: _int(j['presencas']),
       unidades: _int(j['unidades_consideradas']),
+      atividadesVencidas: _int(j['atividades_vencidas']),
+      atividadesSemEntrega: _int(j['atividades_sem_entrega']),
+      certeza: _num(j['certeza']) ?? 0,
       prioridade: _str(j['prioridade']),
       regras: (j['regras'] as List? ?? []).map((e) => e.toString()).toList(),
       acionadas: _lista(j['acionadas'], RegraAcionada.fromJson),
@@ -432,6 +535,7 @@ class Analise {
       sinteseStatus: _str(j['sintese_status']),
       mediaMinima: _num(c['media_minima']) ?? 0,
       frequenciaMinima: _num(c['frequencia_minima']) ?? 0,
+      atrasosMaximos: _int(c['atrasos_maximos']),
       revisoes: _lista(j['revisoes'], Revisao.fromJson),
     );
   }
@@ -446,6 +550,9 @@ class Analise {
   final double? frequencia;
   final int presencas;
   final int unidades;
+  final int atividadesVencidas;
+  final int atividadesSemEntrega;
+  final double certeza;
   final String prioridade;
   final List<String> regras;
   final List<RegraAcionada> acionadas;
@@ -455,6 +562,7 @@ class Analise {
   final String sinteseStatus;
   final double mediaMinima;
   final double frequenciaMinima;
+  final int atrasosMaximos;
   final List<Revisao> revisoes;
 }
 
@@ -529,7 +637,16 @@ class DetalheIndicador {
 }
 
 class ItemAssistente {
-  ItemAssistente({required this.matriculaId, required this.codigo, required this.aluno, required this.titulo, required this.prioridade, required this.detalhes, required this.observacao});
+  ItemAssistente({
+    required this.matriculaId,
+    required this.codigo,
+    required this.aluno,
+    required this.titulo,
+    required this.prioridade,
+    required this.certeza,
+    required this.detalhes,
+    required this.observacao,
+  });
 
   factory ItemAssistente.fromJson(Map<String, dynamic> j) => ItemAssistente(
         matriculaId: _int(j['matricula_id']),
@@ -537,6 +654,7 @@ class ItemAssistente {
         aluno: _str(j['aluno']),
         titulo: _str(j['titulo']),
         prioridade: _str(j['prioridade']),
+        certeza: _num(j['certeza']) ?? 0,
         detalhes: _lista(j['detalhes'], DetalheIndicador.fromJson),
         observacao: j['observacao'] as String?,
       );
@@ -546,6 +664,7 @@ class ItemAssistente {
   final String aluno;
   final String titulo;
   final String prioridade;
+  final double certeza;
   final List<DetalheIndicador> detalhes;
   final String? observacao;
 }

@@ -168,7 +168,7 @@ class _Apresentacao extends StatelessWidget {
             child: Row(children: [
               Icon(icone, color: Cores.vermelho),
               const SizedBox(width: 12),
-              Text(texto, style: const TextStyle(color: Colors.white, fontSize: 15)),
+              Expanded(child: Text(texto, style: const TextStyle(color: Colors.white, fontSize: 15))),
             ]),
           ),
       ]),

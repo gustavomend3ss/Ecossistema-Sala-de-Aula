@@ -1,4 +1,4 @@
-/// Formatação em português do Brasil, sem dependências externas.
+// Formatação em português do Brasil, sem dependências externas.
 
 String fmtNum(double? v, {int casas = 1}) {
   if (v == null) return '—';
@@ -34,6 +34,7 @@ const rotuloPrioridade = {
   'prioridade_alta': 'Prioridade alta',
   'alerta_media': 'Alerta de média',
   'alerta_frequencia': 'Alerta de frequência',
+  'alerta_entregas': 'Alerta de entregas',
   'conferir_dados': 'Conferir dados',
   'sem_alerta': 'Sem alerta',
 };
@@ -50,4 +51,15 @@ const descricaoRegra = {
   'R3': 'R1 e R2 ao mesmo tempo → prioridade alta de conferência',
   'R4': 'Dado ausente ou inconsistente → indicador não avaliável',
   'R5': 'Registro ou critério atualizado → nova análise; anterior mantida',
+  'R6': 'Atividades vencidas sem entrega acima do limite → alerta de entregas',
 };
+
+const rotuloSituacao = {
+  'entregue': 'Entregue no prazo',
+  'entregue_atraso': 'Entregue com atraso',
+  'atrasada': 'Sem entrega',
+  'aberta': 'Em aberto',
+};
+
+/// "0,88" para o grau de certeza (fator de certeza, de 0 a 1).
+String fmtCerteza(double v) => v.toStringAsFixed(2).replaceAll('.', ',');

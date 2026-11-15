@@ -66,6 +66,28 @@ void main() {
     });
   });
 
+  test('radar de entregas da atividade', () {
+    final a = AtividadeResumo.fromJson({
+      'id': 3, 'titulo': 'Mapa de frames', 'descricao': '', 'prazo': '2026-11-07',
+      'vencida': true, 'total': 3,
+      'contagem': {'entregue': 1, 'entregue_atraso': 0, 'atrasada': 2, 'aberta': 0},
+    });
+    expect(a.noPrazo, 1);
+    expect(a.semEntrega, 2);
+    expect(fmtCerteza(0.88), '0,88');
+  });
+
+  testWidgets('situação da entrega aparece por extenso', (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(body: Column(children: [
+        ChipSituacao(situacao: 'atrasada'),
+        ChipSituacao(situacao: 'entregue_atraso'),
+      ])),
+    ));
+    expect(find.text('Sem entrega'), findsOneWidget);
+    expect(find.text('Entregue com atraso'), findsOneWidget);
+  });
+
   testWidgets('chip de acompanhamento sempre tem texto', (tester) async {
     await tester.pumpWidget(const MaterialApp(
       home: Scaffold(body: ChipAcompanhamento(prioridade: 'prioridade_alta', desatualizada: true)),
