@@ -19,6 +19,7 @@ class _AssistenteViewState extends State<AssistenteView> {
   late final AssistenteViewModel _vm = AssistenteViewModel(widget.repos)..carregar();
   final _campo = TextEditingController();
   final _rolagem = ScrollController();
+  final _ultimaTroca = GlobalKey();
 
   @override
   void initState() {
@@ -35,11 +36,24 @@ class _AssistenteViewState extends State<AssistenteView> {
     super.dispose();
   }
 
+  /// Leva a troca mais recente para o topo da conversa, para a resposta ser
+  /// lida desde o começo (rolar até o fim escondia o início de respostas longas).
   void _rolarParaFim() {
+    void alinhar() {
+      final alvo = _ultimaTroca.currentContext;
+      if (alvo != null) {
+        Scrollable.ensureVisible(alvo,
+            alignment: 0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+      }
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_rolagem.hasClients) {
-        _rolagem.animateTo(_rolagem.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+      if (_ultimaTroca.currentContext == null && _rolagem.hasClients) {
+        // A lista só constrói o que está perto da tela: vai ao fim e alinha depois.
+        _rolagem.jumpTo(_rolagem.position.maxScrollExtent);
+        WidgetsBinding.instance.addPostFrameCallback((_) => alinhar());
+      } else {
+        alinhar();
       }
     });
   }
@@ -95,8 +109,13 @@ class _AssistenteViewState extends State<AssistenteView> {
                                   controller: _rolagem,
                                   padding: const EdgeInsets.all(18),
                                   children: [
-                                    for (final m in _vm.mensagens)
-                                      _Troca(m: m, largo: largo, aoAbrir: _abrirEvidencias),
+                                    for (var i = 0; i < _vm.mensagens.length; i++)
+                                      _Troca(
+                                        key: i == _vm.mensagens.length - 1 ? _ultimaTroca : null,
+                                        m: _vm.mensagens[i],
+                                        largo: largo,
+                                        aoAbrir: _abrirEvidencias,
+                                      ),
                                   ],
                                 ),
                         ),
@@ -183,7 +202,7 @@ String _hora(DateTime d) =>
     '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
 class _Troca extends StatelessWidget {
-  const _Troca({required this.m, required this.largo, required this.aoAbrir});
+  const _Troca({super.key, required this.m, required this.largo, required this.aoAbrir});
   final MensagemChat m;
   final bool largo;
   final void Function(ItemAssistente) aoAbrir;
@@ -299,7 +318,9 @@ class _ItemResposta extends StatelessWidget {
                 Text(d.rotulo, style: const TextStyle(fontSize: 12.5)),
                 Text(
                   d.avaliavel
-                      ? (d.alerta ? '${d.valor} < ${d.limite}' : '${d.valor}  (mín. ${d.limite})')
+                      ? (d.alerta
+                          ? '${d.valor} ${d.comparacao} ${d.limite}'
+                          : '${d.valor}  (${d.tipoLimite} ${d.limite})')
                       : 'Não avaliável',
                   style: TextStyle(
                     fontWeight: FontWeight.w800,

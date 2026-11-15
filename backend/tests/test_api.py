@@ -199,7 +199,10 @@ def test_assistente_quem_precisa_de_acompanhamento(cliente):
     assert nomes == ["Ana Lima", "Bruno Reis", "Carla Dias"]
     assert r["itens"][0]["certeza"] == 0.88
     assert r["itens"][0]["detalhes"][0] == {
-        "rotulo": "Média", "valor": "5,2", "limite": "6,0", "alerta": True, "avaliavel": True}
+        "rotulo": "Média", "valor": "5,2", "limite": "6,0", "alerta": True, "avaliavel": True,
+        "comparacao": "<", "tipo_limite": "mín."}
+    entregas_bruno = r["itens"][1]["detalhes"][2]
+    assert (entregas_bruno["valor"], entregas_bruno["comparacao"], entregas_bruno["limite"]) == ("2", ">", "1")
     assert any(f["titulo"] == "Perfil DEMO-v2" for f in r["fontes"])
 
 

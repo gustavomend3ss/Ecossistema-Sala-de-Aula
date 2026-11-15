@@ -131,13 +131,13 @@ def _detalhes(a: Analise) -> list[dict]:
     return [
         {"rotulo": "Média", "valor": fmt_num(a.media),
          "limite": fmt_num(c.media_minima), "alerta": "R1" in regras,
-         "avaliavel": a.media is not None},
+         "avaliavel": a.media is not None, "comparacao": "<", "tipo_limite": "mín."},
         {"rotulo": "Frequência", "valor": fmt_pct(a.frequencia),
          "limite": fmt_pct(c.frequencia_minima), "alerta": "R2" in regras,
-         "avaliavel": a.frequencia is not None},
+         "avaliavel": a.frequencia is not None, "comparacao": "<", "tipo_limite": "mín."},
         {"rotulo": "Sem entrega", "valor": str(a.atividades_sem_entrega),
          "limite": str(c.atrasos_maximos), "alerta": "R6" in regras,
-         "avaliavel": a.atividades_vencidas > 0},
+         "avaliavel": a.atividades_vencidas > 0, "comparacao": ">", "tipo_limite": "máx."},
     ]
 
 

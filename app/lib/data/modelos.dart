@@ -619,7 +619,15 @@ class Conferencia {
 }
 
 class DetalheIndicador {
-  DetalheIndicador({required this.rotulo, required this.valor, required this.limite, required this.alerta, required this.avaliavel});
+  DetalheIndicador({
+    required this.rotulo,
+    required this.valor,
+    required this.limite,
+    required this.alerta,
+    required this.avaliavel,
+    required this.comparacao,
+    required this.tipoLimite,
+  });
 
   factory DetalheIndicador.fromJson(Map<String, dynamic> j) => DetalheIndicador(
         rotulo: _str(j['rotulo']),
@@ -627,6 +635,8 @@ class DetalheIndicador {
         limite: _str(j['limite']),
         alerta: j['alerta'] == true,
         avaliavel: j['avaliavel'] != false,
+        comparacao: j['comparacao'] as String? ?? '<',
+        tipoLimite: j['tipo_limite'] as String? ?? 'mín.',
       );
 
   final String rotulo;
@@ -634,6 +644,8 @@ class DetalheIndicador {
   final String limite;
   final bool alerta;
   final bool avaliavel;
+  final String comparacao; // '<' para mínimo, '>' para máximo
+  final String tipoLimite; // 'mín.' ou 'máx.'
 }
 
 class ItemAssistente {
