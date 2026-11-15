@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from .. import config
+from .. import config, seguranca
 from ..esquemas import (AtividadeEntrada, ConferenciaEntrada, EntregaEntrada,
                         LoginEntrada, NotaEntrada, PerguntaEntrada,
                         PresencaEntrada, RespostaEntrada, RevisaoEntrada)
@@ -51,10 +51,22 @@ def _indicadores(db: Session, m: Matricula) -> dict:
 
 # --------------------------------------------------------------- sessões
 @router.post("/sessoes", tags=["sessões"])                     # [Q4]
-def entrar(dados: LoginEntrada, db: Session = Depends(get_db)):
+def entrar(dados: LoginEntrada, request: Request, db: Session = Depends(get_db)):
+    # Na Vercel, o endereço real vem em x-forwarded-for, preenchido pela
+    # própria plataforma; fora dela, vale o endereço da conexão.
+    encaminhado = request.headers.get("x-forwarded-for", "") if config.NA_VERCEL else ""
+    ip = encaminhado.split(",")[0].strip() or (request.client.host if request.client else "?")
+    espera = seguranca.segundos_bloqueado(dados.login, ip)
+    if espera:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            f"Muitas tentativas. Tente de novo em {max(1, espera // 60)} min.",
+            headers={"Retry-After": str(espera)})
     u = db.scalar(select(Usuario).where(Usuario.login == dados.login.strip().lower()))
     if u is None or not conferir_senha(dados.senha, u.senha_hash):
+        seguranca.registrar_falha(dados.login, ip)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Usuário ou senha incorretos.")
+    seguranca.limpar_falhas(dados.login, ip)
     token, expira = criar_token(u)
     return {"token": token, "expira_em": expira.isoformat(), "usuario": _usuario_dict(u)}
 

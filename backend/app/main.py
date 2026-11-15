@@ -20,14 +20,35 @@ app = FastAPI(
                  "(Inteligência Artificial) — FAINOR 2026.2. Dados fictícios."),
     version="0.2.0",
     lifespan=ciclo_de_vida,
+    docs_url="/docs" if config.DOCS_ATIVOS else None,
+    redoc_url=None,
+    openapi_url="/openapi.json" if config.DOCS_ATIVOS else None,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=config.CORS_ORIGINS,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Cabeçalhos de segurança em toda resposta da API. Respostas com dados de
+# alunos não devem ficar em cache de navegador ou de proxy.
+CABECALHOS_SEGURANCA = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Cache-Control": "no-store",
+}
+
+
+@app.middleware("http")
+async def cabecalhos_de_seguranca(request, call_next):
+    resposta = await call_next(request)
+    for nome, valor in CABECALHOS_SEGURANCA.items():
+        resposta.headers.setdefault(nome, valor)
+    return resposta
+
+if config.CORS_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=config.CORS_ORIGINS,
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
 
 
 @app.get("/", tags=["status"])

@@ -9,7 +9,7 @@ os.environ["GEMINI_API_KEY"] = ""
 import pytest                                   # noqa: E402
 from fastapi.testclient import TestClient       # noqa: E402
 
-from app import seed                            # noqa: E402
+from app import seed, seguranca                 # noqa: E402
 from app.main import app                        # noqa: E402
 from app.servicos import sintese                # noqa: E402
 
@@ -17,6 +17,7 @@ from app.servicos import sintese                # noqa: E402
 @pytest.fixture()
 def cliente():
     seed.carregar()
+    seguranca._falhas.clear()
     sintese.chamador_padrao = None
     with TestClient(app) as c:
         yield c

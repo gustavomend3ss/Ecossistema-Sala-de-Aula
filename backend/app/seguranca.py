@@ -132,3 +132,33 @@ def obter_matricula(db: Session, usuario: Usuario, matricula_id: int) -> Matricu
     if usuario.perfil == "professor" and professor_tem_turma(db, usuario.id, m.turma_id):
         return m
     raise ACESSO_NEGADO
+
+
+# ------------------------------------------------------------------
+# Limite de tentativas de login. Guardado em memória: simples e suficiente
+# para uma instância. Freia tentativas de adivinhar senha sem bloquear o
+# usuário para sempre: as falhas expiram depois da janela configurada.
+_falhas: dict[str, list[float]] = {}
+
+
+def _chave_login(login: str, ip: str) -> str:
+    return f"{login.strip().lower()}|{ip}"
+
+
+def segundos_bloqueado(login: str, ip: str) -> int:
+    """0 se pode tentar; senão, quantos segundos faltam para liberar."""
+    agora = time.time()
+    chave = _chave_login(login, ip)
+    recentes = [t for t in _falhas.get(chave, []) if agora - t < config.LOGIN_JANELA_SEGUNDOS]
+    _falhas[chave] = recentes
+    if len(recentes) < config.LOGIN_MAX_FALHAS:
+        return 0
+    return int(config.LOGIN_JANELA_SEGUNDOS - (agora - recentes[0])) + 1
+
+
+def registrar_falha(login: str, ip: str) -> None:
+    _falhas.setdefault(_chave_login(login, ip), []).append(time.time())
+
+
+def limpar_falhas(login: str, ip: str) -> None:
+    _falhas.pop(_chave_login(login, ip), None)

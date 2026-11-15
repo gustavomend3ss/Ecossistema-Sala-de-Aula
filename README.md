@@ -14,7 +14,6 @@ A plataforma organiza turmas, notas, chamada, atividades com prazo e acesso por 
 ## Estrutura
 
 ```
-├── api/index.py              ponto de entrada da API na Vercel (monta a API em /api)
 ├── backend/                  API em Python (FastAPI + SQLAlchemy)
 │   ├── app/
 │   │   ├── motor/            assistente: fatos, regras R1–R6, fatores de certeza, explicação
@@ -23,12 +22,12 @@ A plataforma organiza turmas, notas, chamada, atividades com prazo e acesso por 
 │   │   ├── models.py         entidades do banco
 │   │   ├── seguranca.py      senha (PBKDF2), token assinado (HMAC-SHA256), vínculo
 │   │   └── seed.py           dados fictícios
-│   └── tests/                44 testes (pytest), incluindo T01 a T09 do Bloco 2
+│   └── tests/                47 testes (pytest), incluindo T01 a T09 do Bloco 2
 ├── app/                      Flutter (web e Android), view / view model / repositório
 │   ├── lib/data/             cliente HTTP, modelos, repositórios
 │   ├── lib/ui/               login, professor (turmas, turma, matrícula, assistente), aluno
 │   └── test/                 testes de widget e de modelos
-├── scripts/                  build na Vercel e servidor local do build web
+├── scripts/                  servidor local do build web
 ├── .github/workflows/ci.yml  CI: pytest (SQLite e PostgreSQL), flutter analyze, test e build
 ├── vercel.json               configuração do deploy
 └── docker-compose.yml        PostgreSQL 16 para desenvolvimento
@@ -114,7 +113,14 @@ Senha de todos: `demo123`
 
 ## Deploy na Vercel
 
-O repositório já tem tudo configurado (`vercel.json`, `api/index.py` e `scripts/`). A Vercel instala o Flutter, compila o app e publica a API como função Python no mesmo domínio.
+O `vercel.json` usa os **Vercel Services**: um projeto com dois serviços no mesmo domínio.
+
+| Serviço | Pasta | O que é | Rota pública |
+|---|---|---|---|
+| `web` | `app/` | App Flutter compilado como site estático (a Vercel baixa o Flutter no build) | `/` |
+| `api` | `backend/` | FastAPI (`app.main:app`) como função Python | `/api/*`, com o prefixo `/api` retirado antes de chegar à API |
+
+O app chama a API em `/api` na própria origem, então não há endereço para configurar nem CORS. Não há bindings: o único cliente da API é o navegador.
 
 1. Entre em <https://vercel.com/new> com a conta do GitHub.
 2. Importe o repositório `Ecossistema-Sala-de-Aula`. Não mude nenhuma configuração: o `vercel.json` já define instalação, build e pasta de saída.
@@ -131,10 +137,25 @@ Variáveis opcionais:
 
 ---
 
+## Segurança
+
+Medidas proporcionais a um projeto acadêmico com dados fictícios:
+
+- Senhas guardadas só como PBKDF2-SHA256 (200 mil iterações, sal por usuário).
+- Token de sessão assinado com HMAC-SHA256 e validade de 12 h; fica só na memória do app.
+- `SECRET_KEY` assina os tokens. Na Vercel, defina essa variável; sem ela, cada instância sorteia uma chave (a chave de desenvolvimento do repositório nunca é usada lá).
+- Login bloqueado por 15 min após 5 senhas erradas para o mesmo usuário e endereço (resposta 429).
+- Acesso conferido no servidor em toda rota: professor só vê turmas vinculadas e aluno só a própria matrícula (404 para o resto).
+- Validação com Pydantic e sanitização de texto livre no servidor.
+- Na Vercel: CORS fechado (app e API no mesmo domínio), `/docs` desligado e cabeçalhos `nosniff`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` e HSTS; respostas da API com `Cache-Control: no-store`.
+- Nenhuma chave no repositório: `backend/.env` está no `.gitignore`.
+
+As senhas `demo123` são públicas de propósito, para a demonstração. Em uso real, os usuários teriam senhas próprias.
+
 ## Testes
 
 ```bash
-cd backend && pytest -q          # 44 testes da API e do motor de regras
+cd backend && pytest -q          # 47 testes da API e do motor de regras
 cd app && flutter analyze && flutter test
 ```
 

@@ -324,3 +324,32 @@ def test_token_vencido_e_recusado(cliente, monkeypatch):
     cab = entrar(cliente, "prof.gabriel")
     monkeypatch.setattr(seguranca.time, "time", lambda: 9_999_999_999)
     assert cliente.get("/turmas", headers=cab).status_code == 401
+
+
+# ---------------------------------------------------------------- segurança
+def test_login_bloqueia_depois_de_cinco_falhas(cliente):
+    for _ in range(5):
+        r = cliente.post("/sessoes", json={"login": "prof.gabriel", "senha": "errada"})
+        assert r.status_code == 401
+    # Nem a senha certa entra enquanto o bloqueio durar.
+    r = cliente.post("/sessoes", json={"login": "prof.gabriel", "senha": "demo123"})
+    assert r.status_code == 429
+    assert int(r.headers["Retry-After"]) > 0
+    # Outro usuário não é afetado.
+    entrar(cliente, "ana.lima")
+
+
+def test_login_certo_zera_as_falhas(cliente):
+    for _ in range(4):
+        cliente.post("/sessoes", json={"login": "prof.gabriel", "senha": "errada"})
+    entrar(cliente, "prof.gabriel")
+    for _ in range(4):
+        cliente.post("/sessoes", json={"login": "prof.gabriel", "senha": "errada"})
+    entrar(cliente, "prof.gabriel")
+
+
+def test_respostas_tem_cabecalhos_de_seguranca(cliente):
+    r = cliente.get("/turmas", headers=entrar(cliente, "prof.gabriel"))
+    assert r.headers["X-Content-Type-Options"] == "nosniff"
+    assert r.headers["Cache-Control"] == "no-store"
+    assert r.headers["X-Frame-Options"] == "DENY"
