@@ -1,0 +1,112 @@
+name: CI
+
+# Roda a cada push: testes da API (SQLite e PostgreSQL), análise estática,
+# testes e build do app Flutter. Os relatórios de cada etapa e o build web
+# são publicados no ramo "ci-output" para consulta.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ecossistema
+          POSTGRES_PASSWORD: ecossistema
+          POSTGRES_DB: ecossistema
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ecossistema" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar pasta de saída
+        run: mkdir -p out/logs
+
+      # ------------------------------------------------------------- API
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Dependências da API
+        run: pip install -r backend/requirements.txt
+
+      - name: Testes da API (SQLite)
+        working-directory: backend
+        run: |
+          set -o pipefail
+          python -m pytest -v 2>&1 | tee ../out/logs/pytest_sqlite.txt
+
+      - name: Testes da API (PostgreSQL 16)
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: postgresql+psycopg://ecossistema:ecossistema@localhost:5432/ecossistema
+        run: |
+          set -o pipefail
+          python -m pytest -v 2>&1 | tee ../out/logs/pytest_postgres.txt
+
+      # --------------------------------------------------------- Flutter
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Versão do Flutter
+        run: flutter --version 2>&1 | tee out/logs/flutter_version.txt
+
+      - name: Gerar pastas de plataforma (web e android)
+        working-directory: app
+        run: flutter create . --project-name ecossistema_academico --org br.edu.fainor --platforms=web,android
+
+      - name: Dependências do app
+        working-directory: app
+        run: flutter pub get
+
+      - name: Análise estática (flutter analyze)
+        working-directory: app
+        run: |
+          set -o pipefail
+          flutter analyze --no-fatal-infos 2>&1 | tee ../out/logs/flutter_analyze.txt
+
+      - name: Testes do app (flutter test)
+        if: always()
+        working-directory: app
+        run: |
+          set -o pipefail
+          flutter test 2>&1 | tee ../out/logs/flutter_test.txt
+
+      - name: Build web
+        if: always()
+        working-directory: app
+        run: |
+          set -o pipefail
+          flutter build web --release --no-web-resources-cdn 2>&1 | tee ../out/logs/flutter_build_web.txt
+          cp -r build/web ../out/web
+
+      - name: Resumo
+        if: always()
+        run: |
+          {
+            echo "commit: ${GITHUB_SHA}"
+            echo "data: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "resultado dos passos anteriores: ${{ job.status }}"
+          } > out/logs/resumo.txt
+
+      - name: Publicar saída no ramo ci-output
+        if: always()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: ci-output
+          publish_dir: ./out
+          force_orphan: true
