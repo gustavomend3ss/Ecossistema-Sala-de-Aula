@@ -1,5 +1,7 @@
 # Ecossistema de Gestão Acadêmica com Assistente Docente
 
+**Demonstração no ar:** https://ecossistema-sala-de-aula.vercel.app (senha de todos os usuários: `demo123`)
+
 Projeto semestral integrado de **Desenvolvimento de Sistemas Web** e **Inteligência Artificial**, Engenharia de Computação, FAINOR, 2026.2, sob orientação do Prof. Msc. Wallas Fróes de Oliveira.
 
 Equipe de Web: Daniel Soares Oliveira, Gustavo Mendes, Matheus Caires e Rauan Brandão.
@@ -112,6 +114,8 @@ Senha de todos: `demo123`
 ---
 
 ## Deploy na Vercel
+
+O projeto está ligado ao GitHub: cada envio à `main` gera uma nova publicação em https://ecossistema-sala-de-aula.vercel.app.
 
 O `vercel.json` usa os **Vercel Services**: um projeto com dois serviços no mesmo domínio.
 
