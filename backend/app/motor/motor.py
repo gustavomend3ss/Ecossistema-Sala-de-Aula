@@ -259,12 +259,12 @@ UNIDADES_REFERENCIA = 10
 ATIVIDADES_REFERENCIA = 3
 
 DESCRICAO_REGRAS = {
-    "R1": "Média avaliável menor que o mínimo → alerta de média",
-    "R2": "Frequência avaliável menor que o mínimo → alerta de frequência",
-    "R3": "R1 e R2 ao mesmo tempo → prioridade alta de conferência",
-    "R4": "Dado ausente ou inconsistente → indicador não avaliável, com pendência",
-    "R5": "Registro ou critério atualizado → nova análise, anterior mantida no histórico",
-    "R6": "Atividades vencidas sem entrega acima do limite → alerta de entregas",
+    "R1": "Média avaliável abaixo do mínimo gera alerta de média",
+    "R2": "Frequência avaliável abaixo do mínimo gera alerta de frequência",
+    "R3": "R1 e R2 ao mesmo tempo geram prioridade alta de conferência",
+    "R4": "Dado ausente ou inconsistente deixa o indicador não avaliável, com pendência",
+    "R5": "Registro ou critério atualizado pede nova análise; a anterior fica no histórico",
+    "R6": "Atividades vencidas sem entrega acima do limite geram alerta de entregas",
 }
 
 

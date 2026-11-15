@@ -160,7 +160,7 @@ class _Apresentacao extends StatelessWidget {
         const SizedBox(height: 36),
         for (final (icone, texto) in const [
           (Icons.fact_check_outlined, 'Notas e frequência por turma, com histórico de correções'),
-          (Icons.rule_outlined, 'Alertas explicados por regras R1 a R5'),
+          (Icons.rule_outlined, 'Alertas explicados por regras R1 a R6'),
           (Icons.verified_user_outlined, 'O professor confere, revisa e decide'),
         ])
           Padding(

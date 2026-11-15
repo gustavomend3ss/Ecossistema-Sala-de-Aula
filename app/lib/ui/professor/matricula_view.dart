@@ -255,7 +255,7 @@ class _SecaoAnalise extends StatelessWidget {
         for (final x in r5)
           _LinhaRegra(
             regra: 'R5',
-            evidencia: 'Registros v${x.evidencia['versao_registros_anterior']} → '
+            evidencia: 'Registros passaram de v${x.evidencia['versao_registros_anterior']} para '
                 'v${x.evidencia['versao_registros_atual']} desde a análise #${x.evidencia['analise_anterior_id']}, '
                 'que foi mantida no histórico.',
           ),
@@ -697,7 +697,7 @@ class _SecaoHistorico extends StatelessWidget {
               'entrega' => Icons.assignment_turned_in_outlined,
               _ => Icons.how_to_reg_outlined,
             }),
-            title: Text('${h.referencia}: ${h.anterior ?? 'sem registro'} → ${h.novo}'),
+            title: Text('${h.referencia}: de ${h.anterior ?? 'sem registro'} para ${h.novo}'),
             subtitle: Text('${h.autor} • ${fmtDataHora(h.criadoEm)}'),
           ),
       ]),
