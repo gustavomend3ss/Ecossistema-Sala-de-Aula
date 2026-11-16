@@ -101,6 +101,8 @@ jobs:
             echo "data: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
             echo "resultado dos passos anteriores: ${{ job.status }}"
           } > out/logs/resumo.txt
+          # O ramo ci-output só guarda relatórios: a Vercel não deve publicá-lo.
+          echo '{"git":{"deploymentEnabled":false}}' > out/vercel.json
 
       - name: Publicar saída no ramo ci-output
         if: always()
