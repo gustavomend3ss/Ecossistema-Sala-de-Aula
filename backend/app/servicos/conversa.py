@@ -296,8 +296,11 @@ def _processar(db: Session, u: Usuario, pergunta: str, ctx: dict, turma_fixa: Op
                     sugestoes=[f"Quem precisa de acompanhamento em {t.disciplina}?" for t in turmas[:2]])
         if res is None and turma_fixa is None:
             termo = termo_no_fim(pergunta_efetiva)
-            if termo and resolver_pessoa(termo, [(m.aluno_id, m.aluno.nome, m.codigo)
-                                                 for m in matriculas_visiveis(u, turmas)]) is None:
+            pessoa_no_fim = bool(termo and re.search(
+                r"\b(?:aluno|aluna|estudante)\s+" + re.escape(termo) + r"$", pn))
+            if (termo and not pessoa_no_fim and not plano.get("aluno")
+                    and resolver_pessoa(termo, [(m.aluno_id, m.aluno.nome, m.codigo)
+                                              for m in matriculas_visiveis(u, turmas)]) is None):
                 lista = ", ".join(t.disciplina for t in turmas)
                 return _resposta_base(
                     pergunta, "sem_dados",
@@ -330,6 +333,12 @@ def _processar(db: Session, u: Usuario, pergunta: str, ctx: dict, turma_fixa: Op
                 matriculas = [m for m in alcance if m.aluno_id == ra.escolhido.id]
             elif ra.status in ("ambiguo", "confirmar"):
                 return _esclarecer(pergunta_efetiva, ra, plano, ctx)
+            else:
+                return _resposta_base(pergunta, "sem_dados",
+                                      "Não encontrei esse estudante entre os estudantes das suas turmas.")
+        elif plano.get("aluno"):
+            return _resposta_base(pergunta, "sem_dados",
+                                  "Não encontrei esse estudante entre os estudantes das suas turmas.")
         elif any(k in f" {pn} " for k in PRONOME_UNICO) and len(ctx.get("aluno_ids", [])) == 1:
             matriculas = [m for m in matriculas if m.aluno_id == ctx["aluno_ids"][0]]
         elif re.search(r"\b[a-z]{1,3}\d{2}\b", pn) and not any(c in pn.split() for c in

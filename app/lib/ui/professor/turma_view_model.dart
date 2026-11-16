@@ -52,7 +52,7 @@ class TurmaViewModel extends ChangeNotifier {
     try {
       final analises = await _repos.turmas.analisarTurma(turmaId);
       await carregar(silencioso: true);
-      final alertas = analises.where((a) => a.regras.any((r) => r == 'R1' || r == 'R2')).length;
+      final alertas = analises.where((a) => a.regras.any((r) => r == 'R1' || r == 'R2' || r == 'R6')).length;
       final pend = analises.where((a) => a.pendencias.isNotEmpty).length;
       return 'Análise concluída: $alertas com alerta e $pend com pendência.';
     } on ApiException catch (e) {

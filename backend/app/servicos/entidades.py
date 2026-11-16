@@ -243,6 +243,11 @@ def resolver_pessoa(pergunta: str, catalogo: Iterable[tuple[int, str, str]],
                 anotar(pid, nome, detalhe, pts, p)
     lista = list(pontuados.values())
     if not lista:
+        # Uma referência explícita sem correspondência não é uma consulta
+        # geral. Não confundir "alunos com nota baixa" com um nome próprio.
+        mencao = re.search(r"\b(?:aluno|aluna|estudante)\s+([a-z]+)", texto)
+        if tipo == "aluno" and mencao and mencao.group(1) not in PARADAS:
+            return Resolucao(tipo, mencao.group(1), "nenhum")
         return None
     # Mesmo nome com pontuação máxima em mais de uma pessoa: ambíguo.
     return _decidir(tipo, lista)

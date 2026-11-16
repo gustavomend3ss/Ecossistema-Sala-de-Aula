@@ -29,7 +29,7 @@ A plataforma organiza turmas, notas, chamada, atividades com prazo e acesso por 
 │   │   ├── models.py         entidades do banco
 │   │   ├── seguranca.py      senha (PBKDF2), token assinado (HMAC-SHA256), vínculo
 │   │   └── seed.py           dados fictícios
-│   └── tests/                75 testes (pytest): T01 a T09 do Bloco 2 e os 10 cenários do assistente
+│   └── tests/                91 testes (pytest): motor, API, assistente, regressões e deploy
 ├── app/                      Flutter (web e Android), view / view model / repositório
 │   ├── lib/data/             cliente HTTP, modelos, repositórios
 │   ├── lib/ui/               login, professor (turmas, turma, matrícula, assistente), aluno
@@ -126,10 +126,12 @@ O `vercel.json` usa os **Vercel Services**: um projeto com dois serviços no mes
 
 | Serviço | Pasta | O que é | Rota pública |
 |---|---|---|---|
-| `web` | `app/` | App Flutter compilado como site estático (a Vercel baixa o Flutter no build) | `/` |
+| `web` | `app/` | App Flutter compilado como site estático (download seletivo do SDK no build) | `/` |
 | `api` | `backend/` | FastAPI (`app.main:app`) como função Python | `/api/*`, com o prefixo `/api` retirado antes de chegar à API |
 
 O app chama a API em `/api` na própria origem, então não há endereço para configurar nem CORS. Não há bindings: o único cliente da API é o navegador.
+
+O serviço `api` usa uma transformação `request.path` para remover `/api` antes de entregar a requisição ao FastAPI. Um rewrite simples escolhe a rota, mas preserva o caminho observado pelo código; por isso a transformação é necessária.
 
 1. Entre em <https://vercel.com/new> com a conta do GitHub.
 2. Importe o repositório `Ecossistema-Sala-de-Aula`. Não mude nenhuma configuração: o `vercel.json` já define instalação, build e pasta de saída.
@@ -169,7 +171,7 @@ As senhas `demo123` são públicas de propósito, para a demonstração. Em uso 
 ## Testes
 
 ```bash
-cd backend && pytest -q          # 75 testes da API, do motor de regras e do assistente
+cd backend && pytest -q          # 90 passam em SQLite; 1 teste adicional exige PostgreSQL
 TEST_DATABASE_URL=postgresql+psycopg://usuario:senha@localhost:5432/banco pytest -q   # os mesmos, em PostgreSQL
 cd app && flutter analyze && flutter test
 ```
@@ -189,6 +191,8 @@ O GitHub Actions roda os testes da API em SQLite e PostgreSQL 16, a análise est
 | T09: síntese errada ou serviço fora do ar | `test_api.py::test_t09_*` |
 | R6, fatores de certeza, entregas, tokens | `test_motor.py` (R6/FC), `test_api.py` (entregas, tokens) |
 | Assistente: 10 cenários (disciplina certa, com erro, nomes parecidos, inexistente, várias intenções, continuidade, sem dados, sem permissão, Gemini fora do ar, Gemini inconsistente) | `test_assistente.py::test_c1_*` a `test_c10_*` |
+| Regressões: criação e vencimento de atividades, limite do prazo, textos vazios, estudante inexistente e valores incorretos na redação | `test_regressoes.py` |
+| Deploy: transformação do caminho público `/api`, login, consulta, inicialização serverless e três instâncias iniciando juntas em PostgreSQL | `test_deploy.py` |
 
 ---
 
@@ -232,7 +236,7 @@ O professor escreve do jeito dele. A pergunta passa por cinco etapas:
 1. **Intenção.** O Gemini monta um plano com funções de uma lista fechada (`consultar_notas`, `consultar_frequencia`, `listar_alunos_em_risco`, `explicar_alerta`, `sugerir_intervencao`...). Sem Gemini, ou se ele falhar, as regras de palavras-chave fazem o mesmo papel.
 2. **Entidades (RapidFuzz).** Os trechos que citam disciplina ou estudante são comparados com os registros reais do professor: `token_sort_ratio` para nomes inteiros, `token_set_ratio` com penalidade de cobertura para nomes parciais, siglas e códigos de matrícula. A pergunta inteira nunca é comparada. Nome ambíguo vira pergunta de volta com botões; nota baixa de semelhança não gera consulta.
 3. **Consulta.** As funções leem só as turmas vinculadas ao usuário e usam o motor de regras R1 a R6 para decidir. O motor não mudou e continua sendo a única fonte de decisão.
-4. **Redação.** O Gemini explica o resultado em linguagem natural. Antes de mostrar, o texto é conferido: número, código, nome ou suposição que não estão nos fatos fazem o texto ser descartado, e a resposta sai com o texto das regras.
+4. **Redação.** O Gemini explica o resultado em linguagem natural. Antes de mostrar, o texto é conferido: código, nome ou suposição que não estão nos fatos fazem o texto ser descartado. Valores numéricos de indicadores ficam nos cartões e no texto das regras: se a redação livre os repetir, ela é substituída pelo texto das regras, evitando trocas de valores entre alunos ou indicadores. Números da pergunta não são tratados como fatos. Códigos de matrícula e de regras podem aparecer normalmente.
 5. **Contexto.** A conversa guarda, no banco e só para aquele usuário, a disciplina, os estudantes da última resposta e a escolha pendente. Assim "e quais deles também têm muitas faltas?" filtra a lista anterior.
 
 Exemplos que funcionam: "Mostre os alunos com baixo desempenho em estrututa de dados" → "E quais deles também têm muitas faltas?" → "Sugira intervenções para eles"; "Como está a Ana?" (pergunta qual das duas Anas); "notas de computação gráfica" (avisa que não há notas lançadas).

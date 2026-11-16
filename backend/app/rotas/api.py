@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -191,6 +191,9 @@ def criar_atividade(turma_id: int, dados: AtividadeEntrada,
     a = Atividade(turma_id=turma_id, titulo=dados.titulo, descricao=dados.descricao,
                   prazo=dados.prazo.isoformat())
     db.add(a)
+    # Uma operação para toda a turma, na mesma transação da atividade.
+    db.execute(update(Matricula).where(Matricula.turma_id == turma_id)
+               .values(versao_registros=Matricula.versao_registros + 1))
     db.commit()
     db.refresh(a)
     return _atividade_resumo(db, a)

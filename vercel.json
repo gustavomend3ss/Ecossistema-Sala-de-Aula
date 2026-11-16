@@ -3,7 +3,7 @@
   "services": {
     "web": {
       "root": "app",
-      "installCommand": "git clone --depth 1 -b stable https://github.com/flutter/flutter.git /tmp/flutter && /tmp/flutter/bin/flutter config --enable-web --no-analytics",
+      "installCommand": "git clone --depth 1 --filter=blob:none --sparse -b stable https://github.com/flutter/flutter.git /tmp/flutter && git -C /tmp/flutter sparse-checkout set bin packages && /tmp/flutter/bin/flutter config --enable-web --no-analytics",
       "buildCommand": "/tmp/flutter/bin/flutter create . --project-name ecossistema_academico --org br.edu.fainor --platforms=web && /tmp/flutter/bin/flutter pub get && /tmp/flutter/bin/flutter build web --release --no-web-resources-cdn",
       "outputDirectory": "build/web"
     },
@@ -11,10 +11,16 @@
       "root": "backend",
       "framework": "fastapi",
       "entrypoint": "app.main:app",
-      "rewrites": [
+      "routes": [
         {
-          "source": "/api/:path(.*)?",
-          "destination": "/:path"
+          "src": "/api/(.*)",
+          "transforms": [
+            {
+              "type": "request.path",
+              "op": "set",
+              "args": "/$1"
+            }
+          ]
         }
       ]
     }

@@ -3,7 +3,12 @@
 from datetime import date
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+class TextoEntrada(BaseModel):
+    # Limpa antes das restrições de tamanho. Senhas não usam esta base.
+    model_config = ConfigDict(str_strip_whitespace=True)
 
 
 class LoginEntrada(BaseModel):
@@ -20,25 +25,25 @@ class PresencaEntrada(BaseModel):
     presente: bool
 
 
-class RevisaoEntrada(BaseModel):
+class RevisaoEntrada(TextoEntrada):
     decisao: Literal["confirmado", "ajustar_registro", "sem_acao"]
     observacao: str = Field(min_length=3, max_length=1000)
 
 
-class ConferenciaEntrada(BaseModel):
+class ConferenciaEntrada(TextoEntrada):
     referencia: str = Field(pattern=r"^(avaliacao:\d+|aula:\d+|atividade:\d+|geral)$")
     mensagem: str = Field(min_length=5, max_length=1000)
 
 
-class RespostaEntrada(BaseModel):
+class RespostaEntrada(TextoEntrada):
     resposta: str = Field(min_length=2, max_length=1000)
 
 
-class PerguntaEntrada(BaseModel):
+class PerguntaEntrada(TextoEntrada):
     pergunta: str = Field(min_length=2, max_length=500)
 
 
-class MensagemEntrada(BaseModel):
+class MensagemEntrada(TextoEntrada):
     """Pergunta ao assistente. Sem conversa_id, começa uma conversa nova."""
     pergunta: str = Field(min_length=2, max_length=500)
     conversa_id: Optional[int] = Field(default=None, ge=1)

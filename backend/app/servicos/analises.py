@@ -10,6 +10,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import config
 from ..models import Analise, Matricula, Usuario, iso_utc
 from ..motor import Criterios, analisar, montar_motivo
 from . import sintese as sintese_mod
@@ -30,8 +31,18 @@ def ultima_analise(db: Session, matricula_id: int) -> Analise | None:
 
 
 def esta_desatualizada(a: Analise, m: Matricula) -> bool:
-    return (a.versao_registros != m.versao_registros
-            or a.versao_criterios != m.turma.criterio.versao)
+    if (a.versao_registros != m.versao_registros
+            or a.versao_criterios != m.turma.criterio.versao):
+        return True
+    # Prazos mudam os fatos mesmo sem edição. Usa o snapshot, sem consultar
+    # entregas novamente nem invalidar análises só porque virou o dia.
+    hoje = config.hoje().isoformat()
+    for entrega in a.fatos.get("entregas", []):
+        if entrega["situacao"] in ("aberta", "atrasada"):
+            situacao = "atrasada" if entrega["prazo"] < hoje else "aberta"
+            if situacao != entrega["situacao"]:
+                return True
+    return False
 
 
 def executar_analise(db: Session, m: Matricula, solicitante: Usuario,
@@ -55,8 +66,7 @@ def executar_analise(db: Session, m: Matricula, solicitante: Usuario,
 
     # R5: registro ou critério atualizado desde a análise anterior
     anterior = ultima_analise(db, m.id)
-    if anterior is not None and (anterior.versao_registros != m.versao_registros
-                                 or anterior.versao_criterios != criterios.versao):
+    if anterior is not None and esta_desatualizada(anterior, m):
         acionadas.append({
             "regra": "R5", "corpo": ["registro_ou_criterio_atualizado"],
             "cabeca": "nova_analise",

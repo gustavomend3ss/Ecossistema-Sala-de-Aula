@@ -4,13 +4,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import config
-from .database import Base, engine
+from .database import garantir_banco
 from .rotas.api import router
 
 
 @asynccontextmanager
 async def ciclo_de_vida(_app: FastAPI):
-    Base.metadata.create_all(bind=engine)
+    # A mesma trava usada na primeira requisição protege também o startup
+    # quando várias instâncias serverless sobem em um banco ainda vazio.
+    garantir_banco()
     yield
 
 
