@@ -135,6 +135,46 @@ def test_t08_pedido_de_conferencia_nao_altera_nota(cliente):
     assert r.json()["status"] == "respondido"
 
 
+def test_aluno_edita_e_remove_pedido_aberto(cliente):
+    ana = entrar(cliente, "ana.lima")
+    turmas = cliente.get("/turmas", headers=ana).json()
+    mid = next(t["matricula_id"] for t in turmas if t["codigo"] == "A01")
+    regs = cliente.get(f"/matriculas/{mid}/registros", headers=ana).json()
+    av1, av2 = (a["avaliacao_id"] for a in regs["avaliacoes"][:2])
+    pid = cliente.post(f"/matriculas/{mid}/conferencias", headers=ana,
+                       json={"referencia": f"avaliacao:{av1}", "mensagem": "Confere a primeira prova?"}).json()["id"]
+
+    r = cliente.put(f"/conferencias/{pid}", headers=ana,
+                    json={"referencia": f"avaliacao:{av2}", "mensagem": "Era a segunda prova, desculpe."})
+    assert r.status_code == 200
+    assert r.json()["referencia_rotulo"] == "Avaliação 2"
+    assert r.json()["mensagem"] == "Era a segunda prova, desculpe."
+
+    # outra aluna e o professor não mexem no pedido da Ana
+    carla = entrar(cliente, "carla.dias")
+    assert cliente.put(f"/conferencias/{pid}", headers=carla,
+                       json={"referencia": "geral", "mensagem": "tentativa"}).status_code == 404
+    assert cliente.delete(f"/conferencias/{pid}", headers=carla).status_code == 404
+    prof = entrar(cliente, "prof.gabriel")
+    assert cliente.delete(f"/conferencias/{pid}", headers=prof).status_code == 403
+
+    assert cliente.delete(f"/conferencias/{pid}", headers=ana).status_code == 204
+    assert cliente.get(f"/matriculas/{mid}/conferencias", headers=ana).json() == []
+
+
+def test_pedido_respondido_nao_pode_ser_alterado(cliente):
+    ana = entrar(cliente, "ana.lima")
+    turmas = cliente.get("/turmas", headers=ana).json()
+    mid = next(t["matricula_id"] for t in turmas if t["codigo"] == "A01")
+    pid = cliente.post(f"/matriculas/{mid}/conferencias", headers=ana,
+                       json={"referencia": "geral", "mensagem": "Pode conferir minhas faltas?"}).json()["id"]
+    prof = entrar(cliente, "prof.gabriel")
+    cliente.post(f"/conferencias/{pid}/resposta", headers=prof, json={"resposta": "Conferido, está certo."})
+    assert cliente.put(f"/conferencias/{pid}", headers=ana,
+                       json={"referencia": "geral", "mensagem": "Mudei de ideia."}).status_code == 409
+    assert cliente.delete(f"/conferencias/{pid}", headers=ana).status_code == 409
+
+
 # ---------------------------------------------------------------- T09
 def _analisar_a01(cliente):
     cab = entrar(cliente, "prof.gabriel")

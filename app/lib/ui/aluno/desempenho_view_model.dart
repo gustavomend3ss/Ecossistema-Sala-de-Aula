@@ -64,4 +64,39 @@ class DesempenhoViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<String?> editarConferencia(int matriculaId, Conferencia c, String referencia, String mensagem) async {
+    enviando = true;
+    notifyListeners();
+    try {
+      final nova = await _repos.matriculas.editarConferencia(c.id, referencia, mensagem);
+      conferencias[matriculaId] = [
+        for (final x in conferencias[matriculaId] ?? const <Conferencia>[]) x.id == c.id ? nova : x,
+      ];
+      return null;
+    } on ApiException catch (e) {
+      return e.mensagem;
+    } finally {
+      enviando = false;
+      notifyListeners();
+    }
+  }
+
+  Future<String?> removerConferencia(int matriculaId, Conferencia c) async {
+    enviando = true;
+    notifyListeners();
+    try {
+      await _repos.matriculas.removerConferencia(c.id);
+      conferencias[matriculaId] = [
+        for (final x in conferencias[matriculaId] ?? const <Conferencia>[])
+          if (x.id != c.id) x,
+      ];
+      return null;
+    } on ApiException catch (e) {
+      return e.mensagem;
+    } finally {
+      enviando = false;
+      notifyListeners();
+    }
+  }
 }

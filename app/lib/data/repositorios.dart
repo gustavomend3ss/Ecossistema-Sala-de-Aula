@@ -111,6 +111,15 @@ class MatriculaRepositorio {
       Conferencia.fromJson(_mapa(await _api.post('/matriculas/$matriculaId/conferencias',
           {'referencia': referencia, 'mensagem': mensagem})));
 
+  /// O aluno corrige o próprio pedido enquanto o professor não respondeu.
+  Future<Conferencia> editarConferencia(int pedidoId, String referencia, String mensagem) async =>
+      Conferencia.fromJson(_mapa(await _api.put('/conferencias/$pedidoId',
+          {'referencia': referencia, 'mensagem': mensagem})));
+
+  Future<void> removerConferencia(int pedidoId) async {
+    await _api.delete('/conferencias/$pedidoId');
+  }
+
   Future<Conferencia> responderConferencia(int pedidoId, String resposta) async =>
       Conferencia.fromJson(
           _mapa(await _api.post('/conferencias/$pedidoId/resposta', {'resposta': resposta})));

@@ -29,7 +29,7 @@ A plataforma organiza turmas, notas, chamada, atividades com prazo e acesso por 
 │   │   ├── models.py         entidades do banco
 │   │   ├── seguranca.py      senha (PBKDF2), token assinado (HMAC-SHA256), vínculo
 │   │   └── seed.py           dados fictícios
-│   └── tests/                71 testes (pytest): T01 a T09 do Bloco 2 e os 10 cenários do assistente
+│   └── tests/                75 testes (pytest): T01 a T09 do Bloco 2 e os 10 cenários do assistente
 ├── app/                      Flutter (web e Android), view / view model / repositório
 │   ├── lib/data/             cliente HTTP, modelos, repositórios
 │   ├── lib/ui/               login, professor (turmas, turma, matrícula, assistente), aluno
@@ -169,7 +169,7 @@ As senhas `demo123` são públicas de propósito, para a demonstração. Em uso 
 ## Testes
 
 ```bash
-cd backend && pytest -q          # 71 testes da API, do motor de regras e do assistente
+cd backend && pytest -q          # 75 testes da API, do motor de regras e do assistente
 TEST_DATABASE_URL=postgresql+psycopg://usuario:senha@localhost:5432/banco pytest -q   # os mesmos, em PostgreSQL
 cd app && flutter analyze && flutter test
 ```
@@ -216,6 +216,8 @@ O GitHub Actions roda os testes da API em SQLite e PostgreSQL 16, a análise est
 | `POST /analises/{id}/revisoes` | Revisão do professor |
 | `POST /matriculas/{id}/conferencias` | Pedido de conferência do aluno |
 | `GET /matriculas/{id}/conferencias` | Pedidos da matrícula |
+| `PUT /conferencias/{id}` | Aluno edita o próprio pedido (só enquanto não foi respondido) |
+| `DELETE /conferencias/{id}` | Aluno remove o próprio pedido (só enquanto não foi respondido) |
 | `POST /conferencias/{id}/resposta` | Resposta do professor |
 | `GET /aluno/desempenho` | Área do aluno |
 

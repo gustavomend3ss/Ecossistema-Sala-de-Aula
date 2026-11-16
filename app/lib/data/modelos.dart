@@ -590,6 +590,7 @@ class Conferencia {
   Conferencia({
     required this.id,
     required this.autor,
+    this.referencia = 'geral',
     required this.referenciaRotulo,
     required this.mensagem,
     required this.status,
@@ -600,6 +601,7 @@ class Conferencia {
   factory Conferencia.fromJson(Map<String, dynamic> j) => Conferencia(
         id: _int(j['id']),
         autor: _str(j['autor']),
+        referencia: j['referencia'] as String? ?? 'geral',
         referenciaRotulo: _str(j['referencia_rotulo']),
         mensagem: _str(j['mensagem']),
         status: _str(j['status']),
@@ -609,6 +611,9 @@ class Conferencia {
 
   final int id;
   final String autor;
+
+  /// Registro citado: avaliacao:<id>, aula:<id>, atividade:<id> ou geral.
+  final String referencia;
   final String referenciaRotulo;
   final String mensagem;
   final String status;

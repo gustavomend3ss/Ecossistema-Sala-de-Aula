@@ -127,15 +127,17 @@ Future<PedidoConferenciaDados?> dialogoConferencia(
   BuildContext context, {
   required List<OpcaoReferencia> opcoes,
   String? inicial,
+  String? mensagem,
+  bool editar = false,
 }) {
-  final controle = TextEditingController();
+  final controle = TextEditingController(text: mensagem ?? '');
   final form = GlobalKey<FormState>();
   String referencia = inicial ?? opcoes.first.valor;
   return showDialog<PedidoConferenciaDados>(
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setLocal) => AlertDialog(
-        title: const Text('Solicitar conferência'),
+        title: Text(editar ? 'Editar pedido' : 'Solicitar conferência'),
         content: SizedBox(
           width: 480,
           child: Form(
@@ -179,7 +181,7 @@ Future<PedidoConferenciaDados?> dialogoConferencia(
                 Navigator.of(ctx).pop(PedidoConferenciaDados(referencia, controle.text.trim()));
               }
             },
-            child: const Text('Enviar pedido'),
+            child: Text(editar ? 'Salvar alterações' : 'Enviar pedido'),
           ),
         ],
       ),
@@ -187,6 +189,27 @@ Future<PedidoConferenciaDados?> dialogoConferencia(
   );
 }
 
+
+/// Confirmação simples antes de uma ação que não pode ser desfeita.
+Future<bool> dialogoConfirmacao(BuildContext context,
+    {required String titulo, required String texto, required String acao}) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(titulo),
+      content: Text(texto),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancelar')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Cores.vermelho),
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: Text(acao),
+        ),
+      ],
+    ),
+  );
+  return ok ?? false;
+}
 
 class NovaAtividadeDados {
   const NovaAtividadeDados(this.titulo, this.prazo, this.descricao);

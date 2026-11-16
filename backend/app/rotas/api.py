@@ -315,6 +315,37 @@ def _conferencia_dict(p: PedidoConferencia) -> dict:
             "respondido_em": p.respondido_em.isoformat() if p.respondido_em else None}
 
 
+def _rotulo_da_referencia(db: Session, m: Matricula, referencia: str) -> str:
+    """Nome legível do registro citado; 404 se ele não for da turma da matrícula."""
+    if referencia == "geral":
+        return "Registro geral da matrícula"
+    tipo, ident = referencia.split(":")
+    modelo = {"avaliacao": Avaliacao, "aula": Aula, "atividade": Atividade}[tipo]
+    obj = db.get(modelo, int(ident))
+    if obj is None or obj.turma_id != m.turma_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            "O registro indicado não pertence a esta matrícula.")
+    return {"avaliacao": lambda o: o.nome,
+            "aula": lambda o: f"Aula {o.ordem} ({o.data})",
+            "atividade": lambda o: f"Entrega: {o.titulo}"}[tipo](obj)
+
+
+def _pedido_do_aluno(db: Session, u: Usuario, pedido_id: int) -> PedidoConferencia:
+    """Pedido que o aluno pode mudar: dele e ainda sem resposta do professor.
+    Pedido de outra pessoa = 404 (não revela que existe)."""
+    if u.perfil != "aluno":
+        raise HTTPException(status.HTTP_403_FORBIDDEN,
+                            "Só o aluno que fez o pedido pode alterá-lo ou removê-lo.")
+    p = db.get(PedidoConferencia, pedido_id)
+    if p is None or p.autor_id != u.id:
+        raise ACESSO_NEGADO
+    obter_matricula(db, u, p.matricula_id)
+    if p.status != "aberto":
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "O professor já respondeu este pedido: ele não pode mais ser alterado.")
+    return p
+
+
 @router.post("/matriculas/{matricula_id}/conferencias", status_code=201,
              tags=["conferências"])                                   # [Q4]
 def pedir_conferencia(matricula_id: int, dados: ConferenciaEntrada,
@@ -323,18 +354,7 @@ def pedir_conferencia(matricula_id: int, dados: ConferenciaEntrada,
     if u.perfil != "aluno":
         raise HTTPException(status.HTTP_403_FORBIDDEN,
                             "O pedido de conferência é feito pelo aluno.")
-    if dados.referencia == "geral":
-        rotulo = "Registro geral da matrícula"
-    else:
-        tipo, ident = dados.referencia.split(":")
-        modelo = {"avaliacao": Avaliacao, "aula": Aula, "atividade": Atividade}[tipo]
-        obj = db.get(modelo, int(ident))
-        if obj is None or obj.turma_id != m.turma_id:
-            raise HTTPException(status.HTTP_404_NOT_FOUND,
-                                "O registro indicado não pertence a esta matrícula.")
-        rotulo = {"avaliacao": lambda o: o.nome,
-                  "aula": lambda o: f"Aula {o.ordem} ({o.data})",
-                  "atividade": lambda o: f"Entrega: {o.titulo}"}[tipo](obj)
+    rotulo = _rotulo_da_referencia(db, m, dados.referencia)
     p = PedidoConferencia(matricula_id=m.id, autor_id=u.id, referencia=dados.referencia,
                           referencia_rotulo=rotulo, mensagem=dados.mensagem.strip())
     db.add(p)
@@ -351,6 +371,27 @@ def listar_conferencias(matricula_id: int, u: Usuario = Depends(usuario_atual),
                        .where(PedidoConferencia.matricula_id == m.id)
                        .order_by(PedidoConferencia.criado_em.desc()))
     return [_conferencia_dict(p) for p in itens]
+
+
+@router.put("/conferencias/{pedido_id}", tags=["conferências"])
+def editar_conferencia(pedido_id: int, dados: ConferenciaEntrada,
+                       u: Usuario = Depends(usuario_atual), db: Session = Depends(get_db)):
+    p = _pedido_do_aluno(db, u, pedido_id)
+    m = db.get(Matricula, p.matricula_id)
+    p.referencia_rotulo = _rotulo_da_referencia(db, m, dados.referencia)
+    p.referencia = dados.referencia
+    p.mensagem = dados.mensagem.strip()
+    db.commit()
+    db.refresh(p)
+    return _conferencia_dict(p)
+
+
+@router.delete("/conferencias/{pedido_id}", status_code=204, tags=["conferências"])
+def remover_conferencia(pedido_id: int, u: Usuario = Depends(usuario_atual),
+                        db: Session = Depends(get_db)):
+    p = _pedido_do_aluno(db, u, pedido_id)
+    db.delete(p)
+    db.commit()
 
 
 @router.post("/conferencias/{pedido_id}/resposta", tags=["conferências"])

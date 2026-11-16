@@ -8,6 +8,26 @@ import '../core/formato.dart';
 import '../core/tema.dart';
 import 'desempenho_view_model.dart';
 
+/// Registros que o aluno pode citar num pedido. Ao editar, o registro já
+/// citado entra na lista mesmo que tenha mudado (ex.: a falta virou presença).
+List<OpcaoReferencia> opcoesReferencia(Registros r, {Conferencia? atual}) {
+  final opcoes = <OpcaoReferencia>[
+    for (final a in r.avaliacoes)
+      OpcaoReferencia('avaliacao:${a.avaliacaoId}',
+          '${a.nome} (${a.valor == null ? 'não lançada' : fmtNum(a.valor)})'),
+    for (final a in r.aulas.where((a) => a.presente != true))
+      OpcaoReferencia('aula:${a.aulaId}',
+          'Aula ${a.ordem} • ${fmtData(a.data)} (${a.presente == null ? 'sem registro' : 'falta'})'),
+    for (final a in r.atividades.where((a) => a.situacao == 'atrasada'))
+      OpcaoReferencia('atividade:${a.atividadeId}', 'Entrega: ${a.titulo} (sem registro)'),
+    const OpcaoReferencia('geral', 'Outro registro da matrícula'),
+  ];
+  if (atual != null && !opcoes.any((o) => o.valor == atual.referencia)) {
+    opcoes.insert(0, OpcaoReferencia(atual.referencia, atual.referenciaRotulo));
+  }
+  return opcoes;
+}
+
 /// "Meu desempenho": o aluno vê só a própria matrícula (RF02).
 /// Não mostra rótulos de alerta: mostra dados e o que ainda falta lançar.
 class DesempenhoView extends StatelessWidget {
@@ -15,18 +35,7 @@ class DesempenhoView extends StatelessWidget {
   final DesempenhoViewModel vm;
 
   Future<void> _solicitar(BuildContext context, Registros r, {String? inicial}) async {
-    final opcoes = <OpcaoReferencia>[
-      for (final a in r.avaliacoes)
-        OpcaoReferencia('avaliacao:${a.avaliacaoId}',
-            '${a.nome} (${a.valor == null ? 'não lançada' : fmtNum(a.valor)})'),
-      for (final a in r.aulas.where((a) => a.presente != true))
-        OpcaoReferencia('aula:${a.aulaId}',
-            'Aula ${a.ordem} • ${fmtData(a.data)} (${a.presente == null ? 'sem registro' : 'falta'})'),
-      for (final a in r.atividades.where((a) => a.situacao == 'atrasada'))
-        OpcaoReferencia('atividade:${a.atividadeId}', 'Entrega: ${a.titulo} (sem registro)'),
-      const OpcaoReferencia('geral', 'Outro registro da matrícula'),
-    ];
-    final dados = await dialogoConferencia(context, opcoes: opcoes, inicial: inicial);
+    final dados = await dialogoConferencia(context, opcoes: opcoesReferencia(r), inicial: inicial);
     if (dados == null) return;
     final erro = await vm.pedirConferencia(dados.referencia, dados.mensagem);
     if (context.mounted) {
@@ -225,6 +234,24 @@ class PedidosView extends StatelessWidget {
   const PedidosView({super.key, required this.vm});
   final DesempenhoViewModel vm;
 
+  Future<void> _editar(BuildContext context, Registros m, Conferencia c) async {
+    final dados = await dialogoConferencia(context,
+        opcoes: opcoesReferencia(m, atual: c), inicial: c.referencia, mensagem: c.mensagem, editar: true);
+    if (dados == null) return;
+    final erro = await vm.editarConferencia(m.matriculaId, c, dados.referencia, dados.mensagem);
+    if (context.mounted) mostrarMensagem(context, erro ?? 'Pedido atualizado.', erro: erro != null);
+  }
+
+  Future<void> _remover(BuildContext context, Registros m, Conferencia c) async {
+    final ok = await dialogoConfirmacao(context,
+        titulo: 'Remover pedido?',
+        texto: 'O pedido sobre "${c.referenciaRotulo}" sai da lista do professor. Isso não pode ser desfeito.',
+        acao: 'Remover');
+    if (!ok) return;
+    final erro = await vm.removerConferencia(m.matriculaId, c);
+    if (context.mounted) mostrarMensagem(context, erro ?? 'Pedido removido.', erro: erro != null);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -276,6 +303,22 @@ class PedidosView extends StatelessWidget {
                       if (c.resposta != null) ...[
                         const Divider(height: 22),
                         Text('Resposta do professor: ${c.resposta}'),
+                      ],
+                      if (c.aberta) ...[
+                        const SizedBox(height: 8),
+                        Wrap(spacing: 8, runSpacing: 8, children: [
+                          OutlinedButton.icon(
+                            onPressed: vm.enviando ? null : () => _editar(context, m, c),
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            label: const Text('Editar'),
+                          ),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(foregroundColor: Cores.vermelho),
+                            onPressed: vm.enviando ? null : () => _remover(context, m, c),
+                            icon: const Icon(Icons.delete_outline, size: 18),
+                            label: const Text('Remover'),
+                          ),
+                        ]),
                       ],
                     ]),
                   ),
