@@ -54,6 +54,16 @@ PARADAS = {
 }
 # Palavras que aparecem em nomes de disciplinas mas são comuns demais para
 # identificar uma delas sozinhas.
+# Palavras que costumam vir depois de "aluno" sem ser nome próprio
+# ("aluno destaque", "aluna mais faltosa"). Evitam o "não encontrei".
+NAO_NOMES = {
+    "destaque", "melhor", "melhores", "pior", "piores", "novo", "nova", "novos", "novas",
+    "faltoso", "faltosa", "atrasado", "atrasada", "aprovado", "aprovada", "reprovado",
+    "reprovada", "regular", "exemplar", "ideal", "medio", "media", "especial", "ouvinte",
+    "matriculado", "matriculada", "repetente", "bolsista", "monitor", "monitora",
+    "esforcado", "esforcada", "quieto", "quieta", "ausente", "presente", "certo", "certa",
+}
+
 GENERICAS = {"dados", "sistema", "sistemas", "computacao", "introducao", "fundamentos",
              "engenharia", "projeto", "projetos", "i", "ii", "iii"}
 
@@ -246,7 +256,8 @@ def resolver_pessoa(pergunta: str, catalogo: Iterable[tuple[int, str, str]],
         # Uma referência explícita sem correspondência não é uma consulta
         # geral. Não confundir "alunos com nota baixa" com um nome próprio.
         mencao = re.search(r"\b(?:aluno|aluna|estudante)\s+([a-z]+)", texto)
-        if tipo == "aluno" and mencao and mencao.group(1) not in PARADAS:
+        if tipo == "aluno" and mencao and mencao.group(1) not in PARADAS \
+                and mencao.group(1) not in NAO_NOMES:
             return Resolucao(tipo, mencao.group(1), "nenhum")
         return None
     # Mesmo nome com pontuação máxima em mais de uma pessoa: ambíguo.

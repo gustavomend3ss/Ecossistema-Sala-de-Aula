@@ -112,6 +112,13 @@ def test_nome_inexistente_no_plano_gemini_nao_retorna_turma(cliente):
     assert r["tipo"] == "sem_dados" and r["itens"] == []
 
 
+@pytest.mark.parametrize("pergunta", ["aluno destaque da turma de IA", "Qual a aluna mais faltosa em IA?"])
+def test_palavra_comum_depois_de_aluno_nao_vira_nome(cliente, pergunta):
+    cab = entrar(cliente, "prof.gabriel")
+    r = cliente.post("/assistente/mensagens", headers=cab, json={"pergunta": pergunta}).json()
+    assert "Não encontrei esse estudante" not in r["texto"]
+
+
 def test_consulta_geral_de_alunos_continua_funcionando(cliente):
     cab = entrar(cliente, "prof.gabriel")
     r = cliente.post("/assistente/mensagens", headers=cab,
