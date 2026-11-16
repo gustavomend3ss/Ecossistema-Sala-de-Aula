@@ -275,7 +275,7 @@ class PedidosView extends StatelessWidget {
             const EstadoCarregando()
           else if (itens.isEmpty)
             const EstadoVazio(
-              texto: 'Você ainda não fez pedidos. Use "Solicitar conferência" em Meu desempenho.',
+              texto: 'Nenhum pedido no momento. Para pedir, use "Solicitar conferência" em Meu desempenho.',
               icone: Icons.mark_email_read_outlined,
             )
           else

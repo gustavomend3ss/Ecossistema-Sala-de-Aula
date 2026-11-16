@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import timezone
 import time
 from typing import Optional
 
@@ -27,7 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import config
-from ..models import Conversa, MensagemConversa, Turma, Usuario, agora
+from ..models import Conversa, MensagemConversa, Turma, Usuario, agora, iso_utc
 from . import gemini
 from .consultas import (CRITERIOS_VALIDOS, FUNCOES, Bloco, analises_atuais, fontes,
                         matriculas_visiveis, turmas_autorizadas)
@@ -121,22 +120,16 @@ def obter_conversa(db: Session, u: Usuario, conversa_id: Optional[int]) -> Optio
     return c
 
 
-def _iso(d) -> str:
-    """Data em ISO com fuso. O SQLite devolve a data sem fuso (gravada em UTC),
-    e o app a leria como hora local."""
-    return (d if d.tzinfo else d.replace(tzinfo=timezone.utc)).isoformat()
-
-
 def listar_conversas(db: Session, u: Usuario) -> list[dict]:
     q = select(Conversa).where(Conversa.usuario_id == u.id).order_by(Conversa.atualizada_em.desc()).limit(20)
-    return [{"id": c.id, "titulo": c.titulo, "atualizada_em": _iso(c.atualizada_em),
+    return [{"id": c.id, "titulo": c.titulo, "atualizada_em": iso_utc(c.atualizada_em),
              "mensagens": len(c.mensagens)} for c in db.scalars(q)]
 
 
 def conversa_como_dict(c: Conversa) -> dict:
     return {"id": c.id, "titulo": c.titulo,
             "mensagens": [{"pergunta": m.pergunta, "resposta": m.resposta,
-                           "criada_em": _iso(m.criada_em)} for m in c.mensagens]}
+                           "criada_em": iso_utc(m.criada_em)} for m in c.mensagens]}
 
 
 def _resposta_base(pergunta: str, tipo: str, texto: str, **extra) -> dict:

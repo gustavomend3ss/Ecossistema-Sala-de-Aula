@@ -10,7 +10,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Analise, Matricula, Usuario
+from ..models import Analise, Matricula, Usuario, iso_utc
 from ..motor import Criterios, analisar, montar_motivo
 from . import sintese as sintese_mod
 from .registros import fatos_como_dict, montar_fatos
@@ -127,7 +127,7 @@ def analise_como_dict(a: Analise, m: Matricula) -> dict:
         "matricula_id": a.matricula_id,
         "codigo": m.codigo,
         "aluno": m.aluno.nome,
-        "criado_em": a.criado_em.isoformat(),
+        "criado_em": iso_utc(a.criado_em),
         "solicitado_por": a.solicitado_por.nome,
         "versao_registros": a.versao_registros,
         "versao_criterios": a.versao_criterios,
@@ -155,6 +155,6 @@ def analise_como_dict(a: Analise, m: Matricula) -> dict:
         },
         "revisoes": [
             {"id": r.id, "autor": r.autor.nome, "decisao": r.decisao,
-             "observacao": r.observacao, "criado_em": r.criado_em.isoformat()}
+             "observacao": r.observacao, "criado_em": iso_utc(r.criado_em)}
             for r in a.revisoes],
     }

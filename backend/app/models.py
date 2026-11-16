@@ -22,6 +22,14 @@ def agora() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def iso_utc(d: Optional[datetime]) -> Optional[str]:
+    """Data e hora em ISO com fuso. O SQLite devolve a data sem fuso (gravada em
+    UTC) e o app a leria como hora local; o PostgreSQL já devolve com fuso."""
+    if d is None:
+        return None
+    return (d if d.tzinfo else d.replace(tzinfo=timezone.utc)).isoformat()
+
+
 class Usuario(Base):
     __tablename__ = "usuario"
     id: Mapped[int] = mapped_column(primary_key=True)

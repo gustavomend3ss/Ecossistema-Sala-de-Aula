@@ -10,7 +10,7 @@ from datetime import date
 
 from .. import config
 from ..models import (Atividade, Aula, Avaliacao, Entrega, HistoricoAlteracao,
-                      Matricula, Nota, Presenca, Usuario, agora)
+                      Matricula, Nota, Presenca, Usuario, agora, iso_utc)
 from ..motor import EntregaFato, Fatos, NotaFato, PresencaFato, fmt_num
 
 
@@ -208,5 +208,5 @@ def historico_alteracoes(db: Session, m: Matricula) -> list[dict]:
         .order_by(HistoricoAlteracao.criado_em.desc(), HistoricoAlteracao.id.desc()))
     return [{"id": h.id, "tipo": h.tipo, "referencia": h.referencia,
              "valor_anterior": h.valor_anterior, "valor_novo": h.valor_novo,
-             "autor": h.autor.nome, "criado_em": h.criado_em.isoformat()}
+             "autor": h.autor.nome, "criado_em": iso_utc(h.criado_em)}
             for h in itens]

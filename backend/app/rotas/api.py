@@ -13,7 +13,7 @@ from ..esquemas import (AtividadeEntrada, ConferenciaEntrada, EntregaEntrada,
                         PresencaEntrada, RespostaEntrada, RevisaoEntrada)
 from ..models import (Analise, Atividade, Aula, Avaliacao, Entrega, Matricula, PedidoConferencia,
                       Revisao, Turma, Usuario, VinculoProfessorTurma,
-                      agora)
+                      agora, iso_utc)
 from ..motor import Criterios, analisar
 from ..seguranca import (ACESSO_NEGADO, conferir_senha, criar_token,
                          exigir_professor, exigir_turma, obter_matricula,
@@ -140,7 +140,7 @@ def detalhar_turma(turma_id: int, u: Usuario = Depends(usuario_atual),
             "acompanhamento": None if a is None else {
                 "analise_id": a.id, "prioridade": a.prioridade,
                 "regras": a.regras, "desatualizada": esta_desatualizada(a, m),
-                "criado_em": a.criado_em.isoformat()},
+                "criado_em": iso_utc(a.criado_em)},
             "conferencias_abertas": abertas,
         })
     c = t.criterio
@@ -311,8 +311,8 @@ def _conferencia_dict(p: PedidoConferencia) -> dict:
     return {"id": p.id, "matricula_id": p.matricula_id, "autor": p.autor.nome,
             "referencia": p.referencia, "referencia_rotulo": p.referencia_rotulo,
             "mensagem": p.mensagem, "status": p.status, "resposta": p.resposta,
-            "criado_em": p.criado_em.isoformat(),
-            "respondido_em": p.respondido_em.isoformat() if p.respondido_em else None}
+            "criado_em": iso_utc(p.criado_em),
+            "respondido_em": iso_utc(p.respondido_em)}
 
 
 def _rotulo_da_referencia(db: Session, m: Matricula, referencia: str) -> str:
