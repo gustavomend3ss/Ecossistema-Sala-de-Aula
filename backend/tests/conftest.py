@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient       # noqa: E402
 
 from app import seed, seguranca                 # noqa: E402
 from app.main import app                        # noqa: E402
-from app.servicos import sintese                # noqa: E402
+from app.servicos import gemini, sintese        # noqa: E402
 
 
 @pytest.fixture()
@@ -19,9 +19,11 @@ def cliente():
     seed.carregar()
     seguranca._falhas.clear()
     sintese.chamador_padrao = None
+    gemini.chamador_padrao = None
     with TestClient(app) as c:
         yield c
     sintese.chamador_padrao = None
+    gemini.chamador_padrao = None
 
 
 def entrar(cliente, login, senha="demo123"):

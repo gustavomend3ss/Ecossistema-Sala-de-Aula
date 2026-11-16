@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import config, seguranca
 from ..esquemas import (AtividadeEntrada, ConferenciaEntrada, EntregaEntrada,
-                        LoginEntrada, NotaEntrada, PerguntaEntrada,
+                        LoginEntrada, MensagemEntrada, NotaEntrada, PerguntaEntrada,
                         PresencaEntrada, RespostaEntrada, RevisaoEntrada)
 from ..models import (Analise, Atividade, Aula, Avaliacao, Entrega, Matricula, PedidoConferencia,
                       Revisao, Turma, Usuario, VinculoProfessorTurma,
@@ -18,7 +18,7 @@ from ..motor import Criterios, analisar
 from ..seguranca import (ACESSO_NEGADO, conferir_senha, criar_token,
                          exigir_professor, exigir_turma, obter_matricula,
                          usuario_atual)
-from ..servicos import assistente
+from ..servicos import assistente, conversa
 from ..servicos.analises import (analise_como_dict, esta_desatualizada,
                                  executar_analise, ultima_analise)
 from ..servicos.registros import (historico_alteracoes, montar_fatos,
@@ -211,6 +211,31 @@ def analisar_turma(turma_id: int, u: Usuario = Depends(exigir_professor),
     t = db.get(Turma, turma_id)
     return [analise_como_dict(executar_analise(db, m, u), m)
             for m in sorted(t.matriculas, key=lambda x: x.codigo)]
+
+
+@router.post("/assistente/mensagens", tags=["assistente"])
+def conversar(dados: MensagemEntrada, u: Usuario = Depends(exigir_professor),
+              db: Session = Depends(get_db)):
+    """Assistente com contexto: a turma e os estudantes vêm da própria pergunta
+    (RapidFuzz) ou da conversa. Uma conversa de outro usuário é tratada como
+    inexistente."""
+    if dados.conversa_id is not None and conversa.obter_conversa(db, u, dados.conversa_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Conversa não encontrada.")
+    return conversa.responder(db, u, dados.pergunta, dados.conversa_id)
+
+
+@router.get("/assistente/conversas", tags=["assistente"])
+def conversas(u: Usuario = Depends(exigir_professor), db: Session = Depends(get_db)):
+    return conversa.listar_conversas(db, u)
+
+
+@router.get("/assistente/conversas/{conversa_id}", tags=["assistente"])
+def ver_conversa(conversa_id: int, u: Usuario = Depends(exigir_professor),
+                 db: Session = Depends(get_db)):
+    c = conversa.obter_conversa(db, u, conversa_id)
+    if c is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Conversa não encontrada.")
+    return conversa.conversa_como_dict(c)
 
 
 @router.post("/turmas/{turma_id}/assistente", tags=["assistente"])

@@ -2,14 +2,15 @@
 
 **Demonstração no ar:** https://ecossistema-sala-de-aula.vercel.app (senha de todos os usuários: `demo123`)
 
-Projeto semestral integrado de **Desenvolvimento de Sistemas Web** e **Inteligência Artificial**, Engenharia de Computação, FAINOR, 2026.2, sob orientação do Prof. Msc. Wallas Fróes de Oliveira.
+Projeto semestral integrado de **Desenvolvimento de Sistemas Web** e **Inteligência Artificial**, Engenharia de Computação, FAINOR, 2026.2.
 
-Equipe de Web: Daniel Soares Oliveira, Gustavo Mendes, Matheus Caires e Rauan Brandão.
-Equipe de IA: os quatro de Web, com Camila Ramos, Guilherme Pereira e Samuel Cotinguiba.
+**Equipe:** Camila Ramos, Daniel Soares Oliveira, Guilherme Pereira, Gustavo Mendes, Matheus Caires, Rauan Brandão e Samuel Cotinguiba.
+
+**Professor:** Wallas Fróes de Oliveira.
 
 A plataforma organiza turmas, notas, chamada, atividades com prazo e acesso por perfil. O assistente docente calcula média, frequência e situação das entregas, aplica uma base de regras por encadeamento para a frente e explica cada alerta com o dado, o critério e o fator de certeza usados. Quem decide é o professor: ele confere, revisa e registra a revisão. O assistente não altera notas.
 
-> **Versão 0.2 (Bloco 3).** Dados fictícios. Os limites do perfil DEMO-v2 (média 6,0, frequência 80% e até 1 atividade vencida sem entrega) são didáticos e não correspondem aos critérios oficiais da FAINOR.
+> **Versão 0.3 (Bloco 3, assistente híbrido).** Dados fictícios. Os limites do perfil DEMO-v2 (média 6,0, frequência 80% e até 1 atividade vencida sem entrega) são didáticos e não correspondem aos critérios oficiais da FAINOR.
 
 ---
 
@@ -19,12 +20,16 @@ A plataforma organiza turmas, notas, chamada, atividades com prazo e acesso por 
 ├── backend/                  API em Python (FastAPI + SQLAlchemy)
 │   ├── app/
 │   │   ├── motor/            assistente: fatos, regras R1–R6, fatores de certeza, explicação
-│   │   ├── servicos/         análises (R5), assistente, síntese Gemini, registros e entregas
+│   │   ├── servicos/         análises (R5), assistente híbrido, síntese Gemini, registros e entregas
+│   │   │   ├── entidades.py  RapidFuzz: disciplinas e estudantes citados na pergunta
+│   │   │   ├── consultas.py  funções autorizadas (notas, frequência, risco, alertas...)
+│   │   │   ├── gemini.py     plano da pergunta e redação conferida
+│   │   │   └── conversa.py   orquestra a conversa e guarda o contexto
 │   │   ├── rotas/api.py      rotas REST
 │   │   ├── models.py         entidades do banco
 │   │   ├── seguranca.py      senha (PBKDF2), token assinado (HMAC-SHA256), vínculo
 │   │   └── seed.py           dados fictícios
-│   └── tests/                47 testes (pytest), incluindo T01 a T09 do Bloco 2
+│   └── tests/                71 testes (pytest): T01 a T09 do Bloco 2 e os 10 cenários do assistente
 ├── app/                      Flutter (web e Android), view / view model / repositório
 │   ├── lib/data/             cliente HTTP, modelos, repositórios
 │   ├── lib/ui/               login, professor (turmas, turma, matrícula, assistente), aluno
@@ -105,7 +110,7 @@ Senha de todos: `demo123`
 
 | Usuário | Perfil | O que mostra |
 |---|---|---|
-| `prof.gabriel` | professor | Turmas de IA e de Web |
+| `prof.gabriel` | professor | Turmas de IA, Web, Estrutura de Dados e Computação Gráfica (esta sem notas nem aulas, para o caso "sem dados") |
 | `prof.helena` | professora | Só a turma de Banco de Dados (teste de bloqueio, T06) |
 | `ana.lima` | aluna | A01: média 5,2 e 76% → R1, R2, R3 (certeza 0,88) |
 | `bruno.reis` | aluno | A02: notas e frequência boas, 2 atividades vencidas sem entrega → R6 |
@@ -128,15 +133,18 @@ O app chama a API em `/api` na própria origem, então não há endereço para c
 
 1. Entre em <https://vercel.com/new> com a conta do GitHub.
 2. Importe o repositório `Ecossistema-Sala-de-Aula`. Não mude nenhuma configuração: o `vercel.json` já define instalação, build e pasta de saída.
-3. Em **Environment Variables**, adicione `SECRET_KEY` com um texto aleatório longo (opcional, mas recomendado).
-4. Clique em **Deploy**. O primeiro build leva alguns minutos, porque baixa o Flutter.
+3. Em **Environment Variables**, adicione `SECRET_KEY` com um texto aleatório longo (opcional, mas recomendado) e, se quiser o Gemini, `GEMINI_API_KEY`.
+4. Em **Storage**, ligue um PostgreSQL (Neon, pelo Marketplace). A Vercel cria `DATABASE_URL` sozinha; na primeira requisição a API cria as tabelas e carrega os dados fictícios.
+5. Clique em **Deploy**. O primeiro build leva alguns minutos, porque baixa o Flutter.
 
 Variáveis opcionais:
 
 | Variável | Para quê |
 |---|---|
-| `DATABASE_URL` | PostgreSQL persistente (Supabase ou Neon). Sem ela, o banco é um SQLite em `/tmp`, recriado com os dados fictícios quando a função esfria. |
-| `GEMINI_API_KEY` | Liga a síntese em texto e a classificação de perguntas pelo Gemini. Sem ela, tudo funciona com as regras. |
+| `DATABASE_URL` (ou `POSTGRES_URL`) | PostgreSQL persistente (Neon ou Supabase). Necessário quando a Vercel abre mais de uma instância: sem ele, cada instância tem o próprio SQLite em `/tmp` e a sessão "cai" ao trocar de instância. |
+| `GEMINI_API_KEY` | Liga o Gemini no assistente (interpretação e redação) e na síntese das análises. Sem ela, tudo funciona com as regras. |
+| `GEMINI_MODEL`, `GEMINI_TIMEOUT` | Modelo (padrão `gemini-2.5-flash`) e tempo máximo de espera em segundos (padrão 15). |
+| `FUZZY_ACEITE`, `FUZZY_SUGESTAO`, `FUZZY_MARGEM` | Limiares do RapidFuzz (padrão 85, 70 e 4). |
 | `DATA_REFERENCIA` | Fixa a data usada nos prazos (AAAA-MM-DD), útil para gravar uma demonstração. |
 
 ---
@@ -147,7 +155,9 @@ Medidas proporcionais a um projeto acadêmico com dados fictícios:
 
 - Senhas guardadas só como PBKDF2-SHA256 (200 mil iterações, sal por usuário).
 - Token de sessão assinado com HMAC-SHA256 e validade de 12 h; fica só na memória do app.
-- `SECRET_KEY` assina os tokens. Na Vercel, defina essa variável; sem ela, cada instância sorteia uma chave (a chave de desenvolvimento do repositório nunca é usada lá).
+- `SECRET_KEY` assina os tokens. Na Vercel, defina essa variável; sem ela, a chave é derivada do endereço do banco (igual em todas as instâncias). A chave de desenvolvimento do repositório nunca é usada lá.
+- Assistente: o Gemini só escolhe funções de uma lista fechada e só lê os fatos já filtrados pela permissão do usuário (código, primeiro nome e indicadores; sem login, e-mail ou id). A pergunta vai delimitada, com instrução para ignorar comandos dentro dela, e pedidos de alteração de dados são recusados antes de chegar ao modelo. O texto do Gemini é conferido contra os fatos e descartado se trouxer número, código ou nome que não está no resultado. Os logs registram só intenção, quantidade de itens e tempo.
+- Conversas do assistente ficam presas ao usuário: abrir ou continuar a conversa de outra pessoa dá 404.
 - Login bloqueado por 15 min após 5 senhas erradas para o mesmo usuário e endereço (resposta 429).
 - Acesso conferido no servidor em toda rota: professor só vê turmas vinculadas e aluno só a própria matrícula (404 para o resto).
 - Validação com Pydantic e sanitização de texto livre no servidor.
@@ -159,7 +169,8 @@ As senhas `demo123` são públicas de propósito, para a demonstração. Em uso 
 ## Testes
 
 ```bash
-cd backend && pytest -q          # 47 testes da API e do motor de regras
+cd backend && pytest -q          # 71 testes da API, do motor de regras e do assistente
+TEST_DATABASE_URL=postgresql+psycopg://usuario:senha@localhost:5432/banco pytest -q   # os mesmos, em PostgreSQL
 cd app && flutter analyze && flutter test
 ```
 
@@ -177,6 +188,7 @@ O GitHub Actions roda os testes da API em SQLite e PostgreSQL 16, a análise est
 | T08: pedido de conferência não altera nota | `test_api.py::test_t08_*` |
 | T09: síntese errada ou serviço fora do ar | `test_api.py::test_t09_*` |
 | R6, fatores de certeza, entregas, tokens | `test_motor.py` (R6/FC), `test_api.py` (entregas, tokens) |
+| Assistente: 10 cenários (disciplina certa, com erro, nomes parecidos, inexistente, várias intenções, continuidade, sem dados, sem permissão, Gemini fora do ar, Gemini inconsistente) | `test_assistente.py::test_c1_*` a `test_c10_*` |
 
 ---
 
@@ -190,7 +202,10 @@ O GitHub Actions roda os testes da API em SQLite e PostgreSQL 16, a análise est
 | `GET /turmas/{id}/atividades` | Radar de entregas |
 | `POST /turmas/{id}/atividades` | Criar atividade (título, prazo, descrição) |
 | `POST /turmas/{id}/analises` | Analisar a turma inteira |
-| `POST /turmas/{id}/assistente` | Pergunta ao assistente |
+| `POST /assistente/mensagens` | Pergunta ao assistente (`pergunta`, `conversa_id` opcional) |
+| `GET /assistente/conversas` | Conversas do usuário |
+| `GET /assistente/conversas/{id}` | Trocas de uma conversa |
+| `POST /turmas/{id}/assistente` | Rota antiga, por turma (mantida por compatibilidade) |
 | `GET /matriculas/{id}/registros` | Notas, presenças e atividades da matrícula |
 | `PUT /matriculas/{id}/notas/{avaliacao_id}` | Lançar ou corrigir nota |
 | `PUT /matriculas/{id}/presencas/{aula_id}` | Lançar ou corrigir presença |
@@ -205,6 +220,20 @@ O GitHub Actions roda os testes da API em SQLite e PostgreSQL 16, a análise est
 | `GET /aluno/desempenho` | Área do aluno |
 
 Na Vercel e no servidor local, todas ficam sob `/api` (por exemplo, `/api/sessoes`).
+
+---
+
+## Assistente docente (híbrido)
+
+O professor escreve do jeito dele. A pergunta passa por cinco etapas:
+
+1. **Intenção.** O Gemini monta um plano com funções de uma lista fechada (`consultar_notas`, `consultar_frequencia`, `listar_alunos_em_risco`, `explicar_alerta`, `sugerir_intervencao`...). Sem Gemini, ou se ele falhar, as regras de palavras-chave fazem o mesmo papel.
+2. **Entidades (RapidFuzz).** Os trechos que citam disciplina ou estudante são comparados com os registros reais do professor: `token_sort_ratio` para nomes inteiros, `token_set_ratio` com penalidade de cobertura para nomes parciais, siglas e códigos de matrícula. A pergunta inteira nunca é comparada. Nome ambíguo vira pergunta de volta com botões; nota baixa de semelhança não gera consulta.
+3. **Consulta.** As funções leem só as turmas vinculadas ao usuário e usam o motor de regras R1 a R6 para decidir. O motor não mudou e continua sendo a única fonte de decisão.
+4. **Redação.** O Gemini explica o resultado em linguagem natural. Antes de mostrar, o texto é conferido: número, código, nome ou suposição que não estão nos fatos fazem o texto ser descartado, e a resposta sai com o texto das regras.
+5. **Contexto.** A conversa guarda, no banco e só para aquele usuário, a disciplina, os estudantes da última resposta e a escolha pendente. Assim "e quais deles também têm muitas faltas?" filtra a lista anterior.
+
+Exemplos que funcionam: "Mostre os alunos com baixo desempenho em estrututa de dados" → "E quais deles também têm muitas faltas?" → "Sugira intervenções para eles"; "Como está a Ana?" (pergunta qual das duas Anas); "notas de computação gráfica" (avisa que não há notas lançadas).
 
 ---
 

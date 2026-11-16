@@ -9,6 +9,10 @@ Turma de Web: casos extras, incluindo a fronteira do T02 (média 6,0 e 80%).
 Os prazos são relativos à data de hoje, para a demonstração ter sempre
 atividades vencidas e em aberto.
 Outra professora com turma própria serve para testar o bloqueio do T06.
+Estrutura de Dados e Computação Gráfica entraram com o assistente híbrido:
+a primeira tem estudantes com baixo desempenho e com muitas faltas (para a
+conversa com continuação) e uma segunda "Ana", para a desambiguação; a
+segunda acabou de começar e ainda não tem notas nem aulas registradas.
 Senha de todos os usuários de demonstração: demo123
 """
 
@@ -139,7 +143,13 @@ def carregar(recriar: bool = True) -> None:
     bd = _turma(db, "Banco de Dados", "2026.2", "Turma de outra docente", demo,
                 [("Prova 1", 1.0)], 10, ["Modelagem"])
 
-    for t in (ia, web):
+    temas_ed = ["Listas", "Pilhas", "Filas", "Árvores", "Ordenação", "Hash"]
+    ed = _turma(db, "Estrutura de Dados", "2026.2", "Turma demonstrativa", demo,
+                [("Prova 1", 1.0), ("Prova 2", 1.0)], 20, temas_ed)
+    cg = _turma(db, "Computação Gráfica", "2026.2", "Turma em início de semestre", demo,
+                [("Projeto 1", 1.0), ("Projeto 2", 1.0)], 0, ["Pipeline gráfico"])
+
+    for t in (ia, web, ed, cg):
         db.add(VinculoProfessorTurma(professor_id=gabriel.id, turma_id=t.id))
     db.add(VinculoProfessorTurma(professor_id=helena.id, turma_id=bd.id))
 
@@ -150,6 +160,9 @@ def carregar(recriar: bool = True) -> None:
     elisa = _usuario(db, "elisa.moura", "Elisa Moura", "aluno", h)
     fabio = _usuario(db, "fabio.costa", "Fábio Costa", "aluno", h)
     gina = _usuario(db, "gina.alves", "Gina Alves", "aluno", h)
+    anab = _usuario(db, "ana.souza", "Ana Beatriz Souza", "aluno", h)
+    igor = _usuario(db, "igor.matos", "Igor Matos", "aluno", h)
+    julia = _usuario(db, "julia.ferraz", "Júlia Ferraz", "aluno", h)
 
     # Quadro 7 do Bloco 2
     a01 = _matricular(db, ia, ana, "A01", [5.0, 5.4], presentes=19)      # 5,2 e 76% → R1,R2,R3
@@ -162,6 +175,16 @@ def carregar(recriar: bool = True) -> None:
     w03 = _matricular(db, web, fabio, "W03", [7.0, 6.5, 8.0], presentes=14)   # 70% → R2, e 2 sem entrega → R6
     w04 = _matricular(db, web, gina, "W04", [4.0, 5.5, 5.0], presentes=18, sem_registro=1)  # R1 + presença pendente
     w05 = _matricular(db, web, ana, "W05", [9.0, 8.5, None], presentes=20)    # prova não lançada
+
+    # Estrutura de Dados: baixo desempenho (R1) com e sem muitas faltas (R2)
+    _matricular(db, ed, anab, "E01", [4.0, 5.0], presentes=14)    # 4,5 e 70% → R1, R2, R3
+    _matricular(db, ed, igor, "E02", [5.0, 5.0], presentes=18)    # 5,0 e 90% → R1
+    _matricular(db, ed, diego, "E03", [7.5, 8.0], presentes=19)   # sem alerta
+    _matricular(db, ed, bruno, "E04", [5.5, 5.5], presentes=15)   # 5,5 e 75% → R1, R2, R3
+
+    # Computação Gráfica: nada lançado ainda (consulta sem dados)
+    for cod, aluno in (("G01", julia), ("G02", fabio), ("G03", elisa)):
+        _matricular(db, cg, aluno, cod, [None, None], presentes=0)
     db.flush()
 
     # Atividades com prazo (Bloco 3)

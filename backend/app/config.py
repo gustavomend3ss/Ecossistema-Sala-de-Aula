@@ -1,5 +1,7 @@
 """Configuração lida de variáveis de ambiente (nada de senha no repositório)."""
 
+import hashlib
+import hmac
 import os
 import secrets
 from pathlib import Path
@@ -20,26 +22,50 @@ def _carregar_env() -> None:
 
 _carregar_env()
 
-# Na Vercel (serviço "api"), o único lugar gravável é /tmp. Sem DATABASE_URL,
-# o banco é um SQLite ali, recriado com os dados fictícios quando a função
-# esfria. Para dados persistentes, defina DATABASE_URL com um PostgreSQL.
+# Na Vercel (serviço "api"), o único lugar gravável é /tmp.
 NA_VERCEL = bool(os.getenv("VERCEL"))
 
-# PostgreSQL em produção/demonstração; SQLite só para rodar rápido sem Docker.
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "sqlite:////tmp/ecossistema.db" if NA_VERCEL else "sqlite:///./ecossistema.db",
-)
 
-# Chave que assina os tokens de acesso. Em produção, defina SECRET_KEY no
+def _url_do_banco() -> str:
+    """DATABASE_URL (ou POSTGRES_URL, nome usado pela integração Neon da Vercel).
+    O SQLAlchemy precisa do driver no esquema: postgres:// vira
+    postgresql+psycopg://. Sem banco configurado, SQLite local (ou em /tmp na
+    Vercel, onde cada instância teria o próprio banco: serve só para teste)."""
+    url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or ""
+    if not url:
+        return "sqlite:////tmp/ecossistema.db" if NA_VERCEL else "sqlite:///./ecossistema.db"
+    for prefixo in ("postgres://", "postgresql://"):
+        if url.startswith(prefixo):
+            return "postgresql+psycopg://" + url[len(prefixo):]
+    return url
+
+
+DATABASE_URL = _url_do_banco()
+BANCO_COMPARTILHADO = not DATABASE_URL.startswith("sqlite")
+
+# Chave que assina os tokens de acesso. O certo é definir SECRET_KEY no
 # ambiente (na Vercel: Settings > Environment Variables). A chave fixa abaixo
-# está no repositório público, então só vale fora da Vercel, em
-# desenvolvimento. Na Vercel sem SECRET_KEY, cada instância sorteia a sua: os
-# tokens antigos deixam de valer quando a instância reinicia, o que combina com
-# o SQLite em /tmp, que também é recriado nessa hora.
+# está no repositório público e só vale fora da Vercel, em desenvolvimento.
+# Na Vercel sem SECRET_KEY, a chave é derivada de um valor que todas as
+# instâncias compartilham e que é secreto: o endereço do banco. Sem banco
+# externo, cada instância sorteia a sua (e também teria o próprio SQLite).
 CHAVE_DE_DESENVOLVIMENTO = "ecossistema-academico-chave-de-desenvolvimento"
-SECRET_KEY = os.getenv("SECRET_KEY") or (
-    secrets.token_urlsafe(32) if NA_VERCEL else CHAVE_DE_DESENVOLVIMENTO)
+
+
+def _chave_de_assinatura() -> str:
+    if os.getenv("SECRET_KEY"):
+        return os.environ["SECRET_KEY"]
+    if not NA_VERCEL:
+        return CHAVE_DE_DESENVOLVIMENTO
+    # Só o endereço do banco serve de semente: ele é secreto. URL e id do
+    # deploy são públicos, e com eles a chave seria previsível.
+    semente = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or ""
+    if not semente:
+        return secrets.token_urlsafe(32)
+    return hmac.new(CHAVE_DE_DESENVOLVIMENTO.encode(), semente.encode(), hashlib.sha256).hexdigest()
+
+
+SECRET_KEY = _chave_de_assinatura()
 
 # Recria os dados fictícios quando o banco está vazio (usado na Vercel, onde o
 # SQLite fica em /tmp e some quando a função esfria).
@@ -48,10 +74,22 @@ SEMEAR_SE_VAZIO = os.getenv("SEMEAR_SE_VAZIO", "1" if NA_VERCEL else "0") == "1"
 # Validade do token de sessão, em horas.
 SESSAO_HORAS = int(os.getenv("SESSAO_HORAS", "12"))
 
-# Síntese auxiliar (opcional). Sem chave, o sistema funciona normalmente.
+# Gemini: interpreta perguntas e redige respostas do assistente a partir dos
+# fatos já calculados. Sem chave, tudo continua funcionando com as regras.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_TIMEOUT = float(os.getenv("GEMINI_TIMEOUT", "15"))
+
+# Correspondência aproximada (RapidFuzz), em pontos de 0 a 100.
+# ACEITE: a partir daqui o nome é reconhecido sem perguntar.
+# SUGESTAO: entre SUGESTAO e ACEITE, o assistente pede confirmação.
+# MARGEM: dois candidatos tão próximos assim viram pergunta de desambiguação.
+FUZZY_ACEITE = float(os.getenv("FUZZY_ACEITE", "85"))
+FUZZY_SUGESTAO = float(os.getenv("FUZZY_SUGESTAO", "70"))
+FUZZY_MARGEM = float(os.getenv("FUZZY_MARGEM", "4"))
+
+# Contexto de conversa: quantas trocas anteriores entram na interpretação.
+CONTEXTO_TROCAS = int(os.getenv("CONTEXTO_TROCAS", "4"))
 
 # Origens liberadas para chamar a API de outro endereço (Flutter em
 # desenvolvimento). Na Vercel, app e API ficam no mesmo domínio, então nenhuma

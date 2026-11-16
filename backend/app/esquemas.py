@@ -1,7 +1,7 @@
 """Validação das entradas da API (o FastAPI rejeita o que não bate)."""
 
 from datetime import date
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -36,6 +36,12 @@ class RespostaEntrada(BaseModel):
 
 class PerguntaEntrada(BaseModel):
     pergunta: str = Field(min_length=2, max_length=500)
+
+
+class MensagemEntrada(BaseModel):
+    """Pergunta ao assistente. Sem conversa_id, começa uma conversa nova."""
+    pergunta: str = Field(min_length=2, max_length=500)
+    conversa_id: Optional[int] = Field(default=None, ge=1)
 
 
 class AtividadeEntrada(BaseModel):

@@ -52,6 +52,26 @@ class TurmaRepositorio {
           _mapa(await _api.post('/turmas/$turmaId/assistente', {'pergunta': pergunta})));
 }
 
+/// Assistente docente: conversa com contexto guardado no servidor, por usuário.
+class AssistenteRepositorio {
+  AssistenteRepositorio(this._api);
+  final ApiClient _api;
+
+  Future<RespostaAssistente> enviar(String pergunta, {int? conversaId}) async =>
+      RespostaAssistente.fromJson(_mapa(await _api.post('/assistente/mensagens', {
+        'pergunta': pergunta,
+        if (conversaId != null) 'conversa_id': conversaId,
+      })));
+
+  Future<List<ConversaResumo>> conversas() async =>
+      _lista(await _api.get('/assistente/conversas'), ConversaResumo.fromJson);
+
+  Future<List<TrocaSalva>> abrir(int conversaId) async {
+    final c = _mapa(await _api.get('/assistente/conversas/$conversaId'));
+    return _lista(c['mensagens'], TrocaSalva.fromJson);
+  }
+}
+
 class MatriculaRepositorio {
   MatriculaRepositorio(this._api);
   final ApiClient _api;
@@ -110,10 +130,12 @@ class Repositorios {
       : sessao = SessaoRepositorio(api),
         turmas = TurmaRepositorio(api),
         matriculas = MatriculaRepositorio(api),
-        aluno = AlunoRepositorio(api);
+        aluno = AlunoRepositorio(api),
+        assistente = AssistenteRepositorio(api);
 
   final SessaoRepositorio sessao;
   final TurmaRepositorio turmas;
   final MatriculaRepositorio matriculas;
   final AlunoRepositorio aluno;
+  final AssistenteRepositorio assistente;
 }

@@ -231,3 +231,29 @@ class PedidoConferencia(Base):
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)
     respondido_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     autor: Mapped[Usuario] = relationship()
+
+
+class Conversa(Base):
+    """Conversa com o assistente docente. Pertence a um único usuário: o
+    contexto (turma e estudantes da última resposta) nunca é compartilhado."""
+    __tablename__ = "conversa"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuario.id", ondelete="CASCADE"), index=True)
+    titulo: Mapped[str] = mapped_column(String(120))
+    # Contexto mínimo para perguntas de continuação: ids, nunca texto livre.
+    contexto: Mapped[dict] = mapped_column(JSON, default=dict)
+    criada_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)
+    atualizada_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)
+    mensagens: Mapped[list["MensagemConversa"]] = relationship(
+        back_populates="conversa", cascade="all, delete-orphan",
+        order_by="MensagemConversa.id")
+
+
+class MensagemConversa(Base):
+    __tablename__ = "mensagem_conversa"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    conversa_id: Mapped[int] = mapped_column(ForeignKey("conversa.id", ondelete="CASCADE"), index=True)
+    pergunta: Mapped[str] = mapped_column(Text)
+    resposta: Mapped[dict] = mapped_column(JSON)
+    criada_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=agora)
+    conversa: Mapped[Conversa] = relationship(back_populates="mensagens")

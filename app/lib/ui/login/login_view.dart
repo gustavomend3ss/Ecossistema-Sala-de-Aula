@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../estado_app.dart';
+import '../core/creditos.dart';
 import '../core/tema.dart';
 import 'login_view_model.dart';
 
@@ -41,7 +42,7 @@ class _LoginViewState extends State<LoginView> {
   @override
   Widget build(BuildContext context) {
     final largo = MediaQuery.sizeOf(context).width >= 900;
-    final formulario = _formulario();
+    final formulario = _formulario(largo);
     return Scaffold(
       backgroundColor: largo ? Cores.lateral : Cores.fundo,
       body: largo
@@ -61,7 +62,7 @@ class _LoginViewState extends State<LoginView> {
     );
   }
 
-  Widget _formulario() {
+  Widget _formulario(bool largo) {
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 400),
       child: ListenableBuilder(
@@ -76,6 +77,21 @@ class _LoginViewState extends State<LoginView> {
             const Text('Entrar', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),
             const Text('Use as credenciais do seu perfil.', style: TextStyle(color: Cores.textoSuave)),
+            if (widget.estado.sessaoExpirada && _vm.erro == null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Cores.ambarClaro, borderRadius: BorderRadius.circular(10)),
+                child: const Row(children: [
+                  Icon(Icons.schedule_outlined, color: Cores.ambar, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Sua sessão expirou. Entre novamente para continuar.',
+                        style: TextStyle(color: Cores.ambar)),
+                  ),
+                ]),
+              ),
+            ],
             const SizedBox(height: 24),
             TextFormField(
               controller: _login,
@@ -136,6 +152,10 @@ class _LoginViewState extends State<LoginView> {
               ActionChip(label: const Text('Aluna A03'), avatar: const Icon(Icons.person_outline, size: 18),
                   onPressed: () => _preencher('carla.dias')),
             ]),
+            if (!largo) ...[
+              const SizedBox(height: 28),
+              const Creditos(),
+            ],
           ]),
         ),
       ),
@@ -171,6 +191,8 @@ class _Apresentacao extends StatelessWidget {
               Expanded(child: Text(texto, style: const TextStyle(color: Colors.white, fontSize: 15))),
             ]),
           ),
+        const SizedBox(height: 36),
+        const Creditos(escuro: true),
       ]),
     );
   }

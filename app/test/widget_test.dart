@@ -107,4 +107,59 @@ void main() {
     expect(find.text('Informe o usuário.'), findsOneWidget);
     expect(find.text('Informe a senha.'), findsOneWidget);
   });
+
+  test('resposta do assistente com seções, opções e contexto', () {
+    final r = RespostaAssistente.fromJson({
+      'conversa_id': 7,
+      'pergunta': 'E quais deles também têm muitas faltas?',
+      'tipo': 'resposta',
+      'intencao': 'listar_alunos_em_risco',
+      'texto': 'Em Estrutura de Dados, 2 estudantes aparecem pelo critério escolhido.',
+      'secoes': [
+        {
+          'funcao': 'listar_alunos_em_risco',
+          'titulo': 'Muitas faltas',
+          'texto': '',
+          'sem_dados': false,
+          'itens': [
+            {'matricula_id': 11, 'codigo': 'E01', 'aluno': 'Ana Beatriz Souza', 'disciplina': 'Estrutura de Dados',
+             'titulo': 'Ana Beatriz Souza (E01)', 'prioridade': 'prioridade_alta', 'certeza': 0.9,
+             'detalhes': [], 'observacao': null, 'linhas': ['Conversar sobre as faltas (R2).']},
+          ],
+        },
+      ],
+      'itens': [],
+      'opcoes': [{'rotulo': 'Ana Lima · W05', 'valor': 'Ana Lima'}],
+      'sugestoes': ['Sugira intervenções para esses estudantes'],
+      'fontes': [],
+      'contexto': {'disciplinas': ['Estrutura de Dados'], 'estudantes': 3, 'continuacao': true},
+      'gerado_por': 'regras',
+      'aviso': 'Apoio à decisão.',
+    });
+    expect(r.conversaId, 7);
+    expect(r.secoes.single.itens.single.codigo, 'E01');
+    expect(r.secoes.single.itens.single.linhas, hasLength(1));
+    expect(r.opcoes.single.valor, 'Ana Lima');
+    expect(r.disciplinas, ['Estrutura de Dados']);
+    expect(r.continuacao, isTrue);
+  });
+
+  test('resposta antiga, sem campos novos, continua legível', () {
+    final r = RespostaAssistente.fromJson({'pergunta': 'x', 'intencao': 'ajuda', 'texto': 't', 'itens': [], 'fontes': [], 'aviso': ''});
+    expect(r.tipo, 'resposta');
+    expect(r.secoes, isEmpty);
+    expect(r.conversaId, isNull);
+  });
+
+  testWidgets('login avisa quando a sessão expirou e mostra a equipe', (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final estado = EstadoApp(ApiClient('http://localhost:1'))..sessaoExpirada = true;
+    await tester.pumpWidget(EcossistemaApp(estado: estado));
+    expect(find.textContaining('Sua sessão expirou'), findsOneWidget);
+    expect(find.textContaining('Wallas Fróes de Oliveira'), findsOneWidget);
+    expect(find.textContaining('Samuel Cotinguiba'), findsOneWidget);
+  });
 }

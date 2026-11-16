@@ -1,4 +1,7 @@
-"""Assistente docente: perguntas sobre a turma, respostas com evidência.
+"""Assistente docente: rota legada por turma (Bloco 3, v0.2).
+
+A conversa nova, com contexto, RapidFuzz e Gemini, está em conversa.py.
+
 
 A pergunta é classificada por palavras-chave em uma intenção. Quando nenhuma
 palavra-chave reconhece a pergunta e há chave do Gemini, o modelo só escolhe
@@ -20,7 +23,7 @@ from typing import Callable, Optional
 from .. import config
 from ..models import Analise, Matricula, Turma, Usuario
 from ..motor import DESCRICAO_REGRAS, fmt_num, fmt_pct
-from .analises import esta_desatualizada, executar_analise, ultima_analise
+from .consultas import ROTULO_PRIORIDADE, analises_atuais, detalhes, item
 
 AVISO = "O assistente não toma decisões sozinho e não altera notas. Confira os registros antes de agir."
 
@@ -37,16 +40,6 @@ INTENCOES: list[tuple[str, tuple[str, ...]]] = [
                    "explica")),
     ("resumo", ("resumo", "visao geral", "situacao", "panorama", "como esta", "como vai")),
 ]
-
-ROTULO_PRIORIDADE = {
-    "prioridade_alta": "Prioridade alta",
-    "alerta_media": "Alerta de média",
-    "alerta_frequencia": "Alerta de frequência",
-    "alerta_entregas": "Alerta de entregas",
-    "conferir_dados": "Conferir dados",
-    "sem_alerta": "Sem alerta",
-}
-
 
 def _normalizar(texto: str) -> str:
     sem_acento = unicodedata.normalize("NFKD", texto)
@@ -114,38 +107,16 @@ def _aluno_citado(pergunta: str, matriculas: list[Matricula]) -> Matricula | Non
 
 
 def _analises_atuais(db: Session, turma: Turma, prof: Usuario) -> tuple[list[tuple[Matricula, Analise]], int]:
-    """Usa a última análise de cada matrícula; refaz só as desatualizadas."""
-    pares, novas = [], 0
-    for m in sorted(turma.matriculas, key=lambda x: x.codigo):
-        a = ultima_analise(db, m.id)
-        if a is None or esta_desatualizada(a, m):
-            a = executar_analise(db, m, prof, com_sintese=False)
-            novas += 1
-        pares.append((m, a))
-    return pares, novas
+    return analises_atuais(db, prof, sorted(turma.matriculas, key=lambda x: x.codigo))
 
 
-def _detalhes(a: Analise) -> list[dict]:
-    regras = set(a.regras)
-    c = a.criterio
-    return [
-        {"rotulo": "Média", "valor": fmt_num(a.media),
-         "limite": fmt_num(c.media_minima), "alerta": "R1" in regras,
-         "avaliavel": a.media is not None, "comparacao": "<", "tipo_limite": "mín."},
-        {"rotulo": "Frequência", "valor": fmt_pct(a.frequencia),
-         "limite": fmt_pct(c.frequencia_minima), "alerta": "R2" in regras,
-         "avaliavel": a.frequencia is not None, "comparacao": "<", "tipo_limite": "mín."},
-        {"rotulo": "Sem entrega", "valor": str(a.atividades_sem_entrega),
-         "limite": str(c.atrasos_maximos), "alerta": "R6" in regras,
-         "avaliavel": a.atividades_vencidas > 0, "comparacao": ">", "tipo_limite": "máx."},
-    ]
+_detalhes = detalhes
 
 
 def _item(m: Matricula, a: Analise, titulo: str) -> dict:
-    pend = "; ".join(p["motivo"] for p in a.pendencias) or None
-    return {"matricula_id": m.id, "codigo": m.codigo, "aluno": m.aluno.nome,
-            "titulo": titulo, "prioridade": a.prioridade, "certeza": a.certeza,
-            "detalhes": _detalhes(a), "observacao": pend, "analise_id": a.id}
+    d = item(m, a, titulo)
+    d.pop("disciplina", None)
+    return d
 
 
 def _n_criterios(n: int, sing: str, plur: str) -> str:

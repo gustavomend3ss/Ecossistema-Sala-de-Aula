@@ -658,6 +658,8 @@ class ItemAssistente {
     required this.certeza,
     required this.detalhes,
     required this.observacao,
+    this.disciplina = '',
+    this.linhas = const [],
   });
 
   factory ItemAssistente.fromJson(Map<String, dynamic> j) => ItemAssistente(
@@ -669,6 +671,8 @@ class ItemAssistente {
         certeza: _num(j['certeza']) ?? 0,
         detalhes: _lista(j['detalhes'], DetalheIndicador.fromJson),
         observacao: j['observacao'] as String?,
+        disciplina: _str(j['disciplina']),
+        linhas: [for (final l in (j['linhas'] as List? ?? const [])) l.toString()],
       );
 
   final int matriculaId;
@@ -679,6 +683,40 @@ class ItemAssistente {
   final double certeza;
   final List<DetalheIndicador> detalhes;
   final String? observacao;
+  final String disciplina;
+
+  /// Sugestões de intervenção ligadas às regras (só em "sugerir_intervencao").
+  final List<String> linhas;
+}
+
+/// Um bloco da resposta: uma função autorizada que o backend executou.
+class SecaoAssistente {
+  SecaoAssistente({required this.funcao, required this.titulo, required this.texto, required this.itens, required this.semDados});
+
+  factory SecaoAssistente.fromJson(Map<String, dynamic> j) => SecaoAssistente(
+        funcao: _str(j['funcao']),
+        titulo: _str(j['titulo']),
+        texto: _str(j['texto']),
+        itens: _lista(j['itens'], ItemAssistente.fromJson),
+        semDados: j['sem_dados'] == true,
+      );
+
+  final String funcao;
+  final String titulo;
+  final String texto;
+  final List<ItemAssistente> itens;
+  final bool semDados;
+}
+
+/// Opção de esclarecimento quando o nome citado é ambíguo.
+class OpcaoAssistente {
+  OpcaoAssistente({required this.rotulo, required this.valor});
+
+  factory OpcaoAssistente.fromJson(Map<String, dynamic> j) =>
+      OpcaoAssistente(rotulo: _str(j['rotulo']), valor: _str(j['valor']));
+
+  final String rotulo;
+  final String valor;
 }
 
 class Fonte {
@@ -692,16 +730,42 @@ class Fonte {
 }
 
 class RespostaAssistente {
-  RespostaAssistente({required this.pergunta, required this.intencao, required this.texto, required this.itens, required this.fontes, required this.aviso});
+  RespostaAssistente({
+    required this.pergunta,
+    required this.intencao,
+    required this.texto,
+    required this.itens,
+    required this.fontes,
+    required this.aviso,
+    this.conversaId,
+    this.tipo = 'resposta',
+    this.secoes = const [],
+    this.opcoes = const [],
+    this.sugestoes = const [],
+    this.disciplinas = const [],
+    this.continuacao = false,
+    this.geradoPor = 'regras',
+  });
 
-  factory RespostaAssistente.fromJson(Map<String, dynamic> j) => RespostaAssistente(
-        pergunta: _str(j['pergunta']),
-        intencao: _str(j['intencao']),
-        texto: _str(j['texto']),
-        itens: _lista(j['itens'], ItemAssistente.fromJson),
-        fontes: _lista(j['fontes'], Fonte.fromJson),
-        aviso: _str(j['aviso']),
-      );
+  factory RespostaAssistente.fromJson(Map<String, dynamic> j) {
+    final ctx = j['contexto'] is Map ? Map<String, dynamic>.from(j['contexto'] as Map) : const <String, dynamic>{};
+    return RespostaAssistente(
+      pergunta: _str(j['pergunta']),
+      intencao: _str(j['intencao']),
+      texto: _str(j['texto']),
+      itens: _lista(j['itens'], ItemAssistente.fromJson),
+      fontes: _lista(j['fontes'], Fonte.fromJson),
+      aviso: _str(j['aviso']),
+      conversaId: j['conversa_id'] == null ? null : _int(j['conversa_id']),
+      tipo: j['tipo'] as String? ?? 'resposta',
+      secoes: _lista(j['secoes'], SecaoAssistente.fromJson),
+      opcoes: _lista(j['opcoes'], OpcaoAssistente.fromJson),
+      sugestoes: [for (final s in (j['sugestoes'] as List? ?? const [])) s.toString()],
+      disciplinas: [for (final d in (ctx['disciplinas'] as List? ?? const [])) d.toString()],
+      continuacao: ctx['continuacao'] == true,
+      geradoPor: j['gerado_por'] as String? ?? 'regras',
+    );
+  }
 
   final String pergunta;
   final String intencao;
@@ -709,4 +773,49 @@ class RespostaAssistente {
   final List<ItemAssistente> itens;
   final List<Fonte> fontes;
   final String aviso;
+  final int? conversaId;
+
+  /// resposta, esclarecimento, sem_dados, fora_do_escopo, sem_permissao ou ajuda.
+  final String tipo;
+  final List<SecaoAssistente> secoes;
+  final List<OpcaoAssistente> opcoes;
+  final List<String> sugestoes;
+
+  /// Disciplinas que o assistente usou para responder (contexto da conversa).
+  final List<String> disciplinas;
+  final bool continuacao;
+
+  /// "regras", "gemini" ou "gemini+regras" (texto do Gemini descartado na conferência).
+  final String geradoPor;
+}
+
+class ConversaResumo {
+  ConversaResumo({required this.id, required this.titulo, required this.atualizadaEm, required this.mensagens});
+
+  factory ConversaResumo.fromJson(Map<String, dynamic> j) => ConversaResumo(
+        id: _int(j['id']),
+        titulo: _str(j['titulo']),
+        atualizadaEm: DateTime.tryParse(_str(j['atualizada_em']))?.toLocal(),
+        mensagens: _int(j['mensagens']),
+      );
+
+  final int id;
+  final String titulo;
+  final DateTime? atualizadaEm;
+  final int mensagens;
+}
+
+/// Uma troca guardada no histórico (pergunta + resposta completa).
+class TrocaSalva {
+  TrocaSalva({required this.pergunta, required this.resposta, required this.criadaEm});
+
+  factory TrocaSalva.fromJson(Map<String, dynamic> j) => TrocaSalva(
+        pergunta: _str(j['pergunta']),
+        resposta: RespostaAssistente.fromJson(Map<String, dynamic>.from(j['resposta'] as Map)),
+        criadaEm: DateTime.tryParse(_str(j['criada_em']))?.toLocal() ?? DateTime.now(),
+      );
+
+  final String pergunta;
+  final RespostaAssistente resposta;
+  final DateTime criadaEm;
 }

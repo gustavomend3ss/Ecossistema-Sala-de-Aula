@@ -13,14 +13,20 @@ class MensagemChat {
   bool get pendente => resposta == null && erro == null;
 }
 
+/// Conversa com o assistente docente. O contexto (disciplina, estudantes da
+/// resposta anterior, escolha pendente) fica no servidor, preso à conversa e
+/// ao usuário; aqui guardamos só o id da conversa e as trocas exibidas.
 class AssistenteViewModel extends ChangeNotifier {
   AssistenteViewModel(this._repos);
   final Repositorios _repos;
 
-  List<TurmaResumo> turmas = [];
-  TurmaResumo? turma;
   final List<MensagemChat> mensagens = [];
+  int? conversaId;
+
+  List<TurmaResumo> turmas = [];
+  List<ConversaResumo> historico = [];
   bool carregando = true;
+  bool abrindoConversa = false;
   String? erro;
 
   bool get enviando => mensagens.isNotEmpty && mensagens.last.pendente;
@@ -33,21 +39,13 @@ class AssistenteViewModel extends ChangeNotifier {
     return const [];
   }
 
-  static const sugestoes = [
-    'Quem precisa de acompanhamento nesta turma?',
-    'Quem está atrasado nas entregas?',
-    'Há notas pendentes?',
-    'Como está a frequência?',
-    'Quais critérios você usa?',
-  ];
-
   Future<void> carregar() async {
     carregando = true;
     erro = null;
     notifyListeners();
     try {
       turmas = await _repos.turmas.listar();
-      turma ??= turmas.isEmpty ? null : turmas.first;
+      historico = await _repos.assistente.conversas();
     } on ApiException catch (e) {
       erro = e.mensagem;
     } finally {
@@ -56,25 +54,67 @@ class AssistenteViewModel extends ChangeNotifier {
     }
   }
 
-  void selecionarTurma(TurmaResumo? t) {
-    if (t == null || t.id == turma?.id) return;
-    turma = t;
+  Future<void> _atualizarHistorico() async {
+    try {
+      historico = await _repos.assistente.conversas();
+      notifyListeners();
+    } on ApiException {
+      // O histórico é secundário: a conversa atual continua funcionando.
+    }
+  }
+
+  void novaConversa() {
+    if (enviando) return;
     mensagens.clear();
+    conversaId = null;
     notifyListeners();
   }
 
+  Future<void> abrirConversa(int id) async {
+    if (enviando || id == conversaId) return;
+    abrindoConversa = true;
+    notifyListeners();
+    try {
+      final trocas = await _repos.assistente.abrir(id);
+      mensagens
+        ..clear()
+        ..addAll([
+          for (final t in trocas)
+            MensagemChat(pergunta: t.pergunta, horario: t.criadaEm, resposta: t.resposta),
+        ]);
+      conversaId = id;
+    } on ApiException catch (e) {
+      mensagens
+        ..clear()
+        ..add(MensagemChat(pergunta: 'Abrir conversa', horario: DateTime.now(), erro: e.mensagem));
+      conversaId = null;
+    } finally {
+      abrindoConversa = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> perguntar(String texto) async {
-    final t = turma;
     final pergunta = texto.trim();
-    if (t == null || pergunta.length < 2 || enviando) return;
+    if (pergunta.length < 2 || enviando) return;
     final m = MensagemChat(pergunta: pergunta, horario: DateTime.now());
     mensagens.add(m);
     notifyListeners();
+    final nova = conversaId == null;
     try {
-      m.resposta = await _repos.turmas.perguntar(t.id, pergunta);
+      final r = await _repos.assistente.enviar(pergunta, conversaId: conversaId);
+      m.resposta = r;
+      conversaId = r.conversaId ?? conversaId;
     } on ApiException catch (e) {
-      m.erro = e.mensagem;
+      if (e.status == 404 && conversaId != null) {
+        // A conversa não existe mais (ou não é deste usuário): começa outra.
+        conversaId = null;
+        m.erro = 'Esta conversa não está mais disponível. Envie a pergunta de novo para começar outra.';
+      } else {
+        m.erro = e.mensagem;
+      }
     }
     notifyListeners();
+    if (nova && m.resposta != null) _atualizarHistorico();
   }
 }
