@@ -105,7 +105,8 @@ def detalhes(a: Analise) -> list[dict]:
 
 
 def item(m: Matricula, a: Analise, titulo: str, extra: Optional[dict] = None) -> dict:
-    pend = "; ".join(p["motivo"] for p in a.pendencias) or None
+    pend = "; ".join(p["motivo"].rstrip(". ") for p in a.pendencias)
+    pend = pend + "." if pend else None
     d = {"matricula_id": m.id, "codigo": m.codigo, "aluno": m.aluno.nome,
          "disciplina": m.turma.disciplina, "titulo": titulo, "prioridade": a.prioridade,
          "certeza": a.certeza, "detalhes": detalhes(a), "observacao": pend, "analise_id": a.id}

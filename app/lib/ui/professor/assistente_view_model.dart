@@ -33,8 +33,10 @@ class AssistenteViewModel extends ChangeNotifier {
 
   /// Fontes da última resposta, para o painel lateral.
   List<Fonte> get fontes {
+    // Esclarecimentos e recusas não têm fontes: mostra as da última consulta.
     for (final m in mensagens.reversed) {
-      if (m.resposta != null) return m.resposta!.fontes;
+      final f = m.resposta?.fontes;
+      if (f != null && f.isNotEmpty) return f;
     }
     return const [];
   }
@@ -100,7 +102,6 @@ class AssistenteViewModel extends ChangeNotifier {
     final m = MensagemChat(pergunta: pergunta, horario: DateTime.now());
     mensagens.add(m);
     notifyListeners();
-    final nova = conversaId == null;
     try {
       final r = await _repos.assistente.enviar(pergunta, conversaId: conversaId);
       m.resposta = r;
@@ -115,6 +116,6 @@ class AssistenteViewModel extends ChangeNotifier {
       }
     }
     notifyListeners();
-    if (nova && m.resposta != null) _atualizarHistorico();
+    if (m.resposta != null) _atualizarHistorico();
   }
 }

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import timezone
 import time
 from typing import Optional
 
@@ -120,16 +121,22 @@ def obter_conversa(db: Session, u: Usuario, conversa_id: Optional[int]) -> Optio
     return c
 
 
+def _iso(d) -> str:
+    """Data em ISO com fuso. O SQLite devolve a data sem fuso (gravada em UTC),
+    e o app a leria como hora local."""
+    return (d if d.tzinfo else d.replace(tzinfo=timezone.utc)).isoformat()
+
+
 def listar_conversas(db: Session, u: Usuario) -> list[dict]:
     q = select(Conversa).where(Conversa.usuario_id == u.id).order_by(Conversa.atualizada_em.desc()).limit(20)
-    return [{"id": c.id, "titulo": c.titulo, "atualizada_em": c.atualizada_em.isoformat(),
+    return [{"id": c.id, "titulo": c.titulo, "atualizada_em": _iso(c.atualizada_em),
              "mensagens": len(c.mensagens)} for c in db.scalars(q)]
 
 
 def conversa_como_dict(c: Conversa) -> dict:
     return {"id": c.id, "titulo": c.titulo,
             "mensagens": [{"pergunta": m.pergunta, "resposta": m.resposta,
-                           "criada_em": m.criada_em.isoformat()} for m in c.mensagens]}
+                           "criada_em": _iso(m.criada_em)} for m in c.mensagens]}
 
 
 def _resposta_base(pergunta: str, tipo: str, texto: str, **extra) -> dict:
@@ -304,25 +311,30 @@ def _processar(db: Session, u: Usuario, pergunta: str, ctx: dict, turma_fixa: Op
                     f"Não encontrei a disciplina \"{termo}\" entre as suas turmas ({lista}). "
                     "Só consigo consultar turmas vinculadas a você.",
                     sugestoes=[f"Quem precisa de acompanhamento em {t.disciplina}?" for t in turmas[:2]])
+    disciplina_citada = bool(turmas_sel)
     if not turmas_sel:
         anteriores = [por_id[i] for i in ctx.get("turma_ids", []) if i in por_id]
         turmas_sel = anteriores or turmas
 
-    # 5. Estudante citado (RapidFuzz contra os estudantes visíveis no recorte).
+    # 5. Estudante citado (RapidFuzz contra os estudantes visíveis). Um nome
+    # citado é procurado em todas as turmas do usuário, a menos que a própria
+    # pergunta cite a disciplina: o recorte herdado da conversa não pode
+    # escolher sozinho entre duas "Anas" de turmas diferentes.
     matriculas = matriculas_visiveis(u, turmas_sel)
+    alcance = matriculas_visiveis(u, turmas_sel if disciplina_citada else turmas)
     if escolha_aluno is not None:
-        matriculas = [m for m in matriculas if m.aluno_id == escolha_aluno]
+        matriculas = [m for m in alcance if m.aluno_id == escolha_aluno]
     else:
         texto_aluno = plano.get("aluno") or pergunta_efetiva
         catalogo: dict[int, tuple[int, str, str]] = {}
-        for m in matriculas_visiveis(u, turmas_sel):
+        for m in alcance:
             atual = catalogo.get(m.aluno_id)
             det = f"{m.codigo} ({m.turma.disciplina})"
             catalogo[m.aluno_id] = (m.aluno_id, m.aluno.nome, det if atual is None else f"{atual[2]}, {det}")
         ra = resolver_pessoa(texto_aluno, catalogo.values())
         if ra is not None:
             if ra.status == "unico":
-                matriculas = [m for m in matriculas if m.aluno_id == ra.escolhido.id]
+                matriculas = [m for m in alcance if m.aluno_id == ra.escolhido.id]
             elif ra.status in ("ambiguo", "confirmar"):
                 return _esclarecer(pergunta_efetiva, ra, plano, ctx)
         elif any(k in f" {pn} " for k in PRONOME_UNICO) and len(ctx.get("aluno_ids", [])) == 1:
@@ -335,7 +347,7 @@ def _processar(db: Session, u: Usuario, pergunta: str, ctx: dict, turma_fixa: Op
     # Estudante citado: o recorte passa a ser só as turmas dele.
     if matriculas and len({m.aluno_id for m in matriculas}) == 1:
         ids_turma = {m.turma_id for m in matriculas}
-        turmas_sel = [t for t in turmas_sel if t.id in ids_turma]
+        turmas_sel = [t for t in turmas if t.id in ids_turma]
 
     # 6. Continuação: "quais deles também..." filtra os estudantes da resposta anterior.
     if plano.get("continuar") and ctx.get("matricula_ids") and escolha_aluno is None:

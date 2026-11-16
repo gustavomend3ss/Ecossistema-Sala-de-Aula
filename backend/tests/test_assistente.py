@@ -6,6 +6,7 @@ inclusive quando ele erra ou sai do ar.
 """
 
 import json
+import re
 
 import pytest
 
@@ -116,6 +117,28 @@ def test_c3_estudantes_com_mesmo_nome_pedem_confirmacao(cliente):
     r2 = perguntar(cliente, cab, "a segunda", r["conversa_id"])
     escolhida = r["opcoes"][1]["valor"]
     assert {i["aluno"] for i in r2["itens"]} == {escolhida}
+
+
+def test_c6_contexto_nao_escolhe_sozinho_entre_homonimos(cliente):
+    # A conversa está em Estrutura de Dados, mas "Ana" pode ser a Ana Lima (Web/IA):
+    # o assistente pergunta, em vez de assumir a Ana da turma do contexto.
+    cab = entrar(cliente, "prof.gabriel")
+    r = perguntar(cliente, cab, "Quem está em risco em Estrutura de Dados?")
+    r2 = perguntar(cliente, cab, "Como está a Ana?", r["conversa_id"])
+    assert r2["tipo"] == "esclarecimento"
+    r3 = perguntar(cliente, cab, "Ana Lima", r["conversa_id"])
+    assert {i["aluno"] for i in r3["itens"]} == {"Ana Lima"}
+    assert set(r3["contexto"]["disciplinas"]) == {"Desenvolvimento de Sistemas Web", "Inteligência Artificial"}
+    # citando a disciplina na pergunta, o recorte vale
+    r4 = perguntar(cliente, cab, "Como está a Ana em Estrutura de Dados?", r["conversa_id"])
+    assert {i["aluno"] for i in r4["itens"]} == {"Ana Beatriz Souza"}
+
+
+def test_historico_traz_datas_com_fuso(cliente):
+    cab = entrar(cliente, "prof.gabriel")
+    perguntar(cliente, cab, "Quem está em risco em Estrutura de Dados?")
+    lista = cliente.get("/assistente/conversas", headers=cab).json()
+    assert re.search(r"[+-]\d\d:\d\d$", lista[0]["atualizada_em"])   # data com fuso
 
 
 def test_c4_disciplina_inexistente(cliente):

@@ -111,7 +111,7 @@ class _AssistenteViewState extends State<AssistenteView> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               CabecalhoPagina(
                 titulo: 'Assistente docente',
-                subtitulo: 'Pergunte do seu jeito sobre as suas turmas e confira as evidências.',
+                subtitulo: margem > 16 ? 'Pergunte do seu jeito sobre as suas turmas e confira as evidências.' : null,
                 acoes: [
                   if (!largo && _vm.historico.isNotEmpty)
                     OutlinedButton.icon(
@@ -426,7 +426,11 @@ class _SecaoState extends State<_Secao> {
       ],
       for (final item in mostrar) ...[
         const Divider(height: 26),
-        _ItemResposta(item: item, aoAbrir: widget.aoAbrir),
+        _ItemResposta(
+          item: item,
+          aoAbrir: widget.aoAbrir,
+          sugestao: widget.secao.funcao == 'sugerir_intervencao',
+        ),
       ],
       if (itens.length > _visiveis)
         TextButton(
@@ -439,9 +443,12 @@ class _SecaoState extends State<_Secao> {
 }
 
 class _ItemResposta extends StatelessWidget {
-  const _ItemResposta({required this.item, required this.aoAbrir});
+  const _ItemResposta({required this.item, required this.aoAbrir, this.sugestao = false});
   final ItemAssistente item;
   final void Function(ItemAssistente) aoAbrir;
+
+  /// Linhas de sugestão de intervenção (ícone de ideia) ou de registro (marcador).
+  final bool sugestao;
 
   @override
   Widget build(BuildContext context) {
@@ -488,9 +495,11 @@ class _ItemResposta extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(top: 8),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 2),
-              child: Icon(Icons.lightbulb_outline, size: 16, color: Cores.ambar),
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: sugestao
+                  ? const Icon(Icons.lightbulb_outline, size: 16, color: Cores.ambar)
+                  : const Icon(Icons.chevron_right, size: 16, color: Cores.textoSuave),
             ),
             const SizedBox(width: 8),
             Expanded(child: Text(linha, style: const TextStyle(height: 1.4))),

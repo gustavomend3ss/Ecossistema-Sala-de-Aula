@@ -155,7 +155,7 @@ class _MenuLateral extends StatelessWidget {
         const Spacer(),
         const Padding(
           padding: EdgeInsets.only(left: 12),
-          child: Text('Dados fictícios • v0.2',
+          child: Text('Dados fictícios • v0.3',
               style: TextStyle(color: Color(0xFF8A8A92), fontSize: 11.5)),
         ),
       ]),
