@@ -20,7 +20,7 @@ O código e os testes Flutter foram executados em uma cópia temporária, confer
 
 ## Correções adicionais de deploy
 
-- Substituído o rewrite interno da API por uma transformação `request.path`. Em Vercel Services, o rewrite escolhe a rota, mas não remove o prefixo observado pelo código. Agora `/api/sessoes` chega ao FastAPI como `/sessoes`.
+- ~~Substituído o rewrite interno da API por uma transformação `request.path`.~~ **Revertido após a publicação:** com a transformação, `/api/turmas` chegou ao FastAPI com o prefixo e respondeu 404 em produção. O rewrite do serviço (`/api/:path(.*)?` para `/:path`) já removia o prefixo, como a produção confirmava antes, e voltou a ser usado. O teste de contrato agora lê esse rewrite.
 - A inicialização do FastAPI passou a chamar `garantir_banco()`, reaproveitando a trava PostgreSQL existente. Antes da correção, 2 das 3 instâncias simuladas falharam tentando criar a mesma tabela em um banco vazio. O teste de regressão usa um schema temporário exclusivo e o remove ao terminar.
 - O download do Flutter no build usa checkout seletivo de `bin` e `packages`, evitando baixar o código do engine que não é necessário para compilar esta aplicação.
 

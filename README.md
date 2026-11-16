@@ -131,7 +131,7 @@ O `vercel.json` usa os **Vercel Services**: um projeto com dois serviços no mes
 
 O app chama a API em `/api` na própria origem, então não há endereço para configurar nem CORS. Não há bindings: o único cliente da API é o navegador.
 
-O serviço `api` usa uma transformação `request.path` para remover `/api` antes de entregar a requisição ao FastAPI. Um rewrite simples escolhe a rota, mas preserva o caminho observado pelo código; por isso a transformação é necessária.
+O serviço `api` tem um rewrite próprio (`/api/:path(.*)?` para `/:path`) que retira o `/api` antes de a requisição chegar ao FastAPI. Testamos trocá-lo por uma transformação `request.path` e, na produção, o prefixo passou a chegar à API e todas as rotas deram 404; por isso o rewrite ficou.
 
 1. Entre em <https://vercel.com/new> com a conta do GitHub.
 2. Importe o repositório `Ecossistema-Sala-de-Aula`. Não mude nenhuma configuração: o `vercel.json` já define instalação, build e pasta de saída.

@@ -22,12 +22,14 @@ def test_configuracao_vercel_remove_prefixo_do_caminho_observado_pela_api(client
         destino = next(r["destination"] for r in config["rewrites"]
                        if re.fullmatch(r["source"], publico))
         assert destino["service"] == "api"
-        for rota in config["services"]["api"]["routes"]:
-            match = re.fullmatch(rota["src"], publico)
+        # Rewrite dentro do serviço: "/api/:path(.*)?" -> "/:path". Foi o que a
+        # produção confirmou; a transformação request.path deixava o /api chegar
+        # à API e todas as rotas davam 404.
+        for regra in config["services"]["api"]["rewrites"]:
+            fonte = regra["source"].replace(":path(.*)?", "(.*)")
+            match = re.fullmatch(fonte, publico)
             if match:
-                for transform in rota["transforms"]:
-                    if transform["type"] == "request.path" and transform["op"] == "set":
-                        return transform["args"].replace("$1", match.group(1))
+                return regra["destination"].replace(":path", match.group(1) or "")
         return publico
 
     assert caminho_na_api("/api/sessoes") == "/sessoes"
