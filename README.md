@@ -46,7 +46,7 @@ A plataforma organiza turmas, notas, chamada, atividades com prazo e acesso por 
 
 ### Pré-requisitos
 
-- Git, Python 3.11 ou mais novo e Flutter 3.22 ou mais novo (`flutter --version`)
+- Git, Python 3.12 e Flutter 3.50.0 (Dart 3.14.0), as versões usadas na integração contínua (Ubuntu 24.04). As dependências da API estão com versão fixa em `backend/requirements.txt`
 - Docker, só se quiser PostgreSQL local (sem ele, a API usa SQLite)
 
 ### 1. Clonar
@@ -171,8 +171,9 @@ As senhas `demo123` são públicas de propósito, para a demonstração. Em uso 
 ## Testes
 
 ```bash
-cd backend && pytest -q          # 90 passam em SQLite; 1 teste adicional exige PostgreSQL
-TEST_DATABASE_URL=postgresql+psycopg://usuario:senha@localhost:5432/banco pytest -q   # os mesmos, em PostgreSQL
+cd backend && pytest -q          # 92 passam em SQLite; 1 teste adicional exige PostgreSQL
+python evidencias.py             # saída obtida de cada cenário (T01 a T09, C1 a C10)
+TEST_DATABASE_URL=postgresql+psycopg://usuario:senha@localhost:5432/banco pytest -q   # os 93, em PostgreSQL
 cd app && flutter analyze && flutter test
 ```
 

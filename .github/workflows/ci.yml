@@ -55,10 +55,17 @@ jobs:
           set -o pipefail
           python -m pytest -v 2>&1 | tee ../out/logs/pytest_postgres.txt
 
+      - name: Evidências dos cenários T01 a T09 e C1 a C10
+        working-directory: backend
+        run: |
+          set -o pipefail
+          python evidencias.py 2>&1 | tee ../out/logs/evidencias.txt
+
       # --------------------------------------------------------- Flutter
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.50.0
           cache: true
 
       - name: Versão do Flutter
