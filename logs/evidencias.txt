@@ -1,0 +1,60 @@
+planejamento indisponível: TimeoutError
+redação indisponível: TimeoutError
+T01  | A01: notas 5,0 e 5,4; 19 de 25 presenças
+     -> média 5,2; frequência 76%; regras ['R1', 'R2', 'R3']; certeza 0,88
+
+T02  | Notas 6,0 e 6,0; 20 de 25 presenças
+     -> média 6,0; frequência 80%; regras nenhuma; prioridade sem_alerta
+
+T03  | Notas 7,0 e ausente; 23 de 25 presenças
+     -> média não avaliável; frequência 92%; regras ['R4']; prioridade conferir_dados; pendência: Avaliação 2 sem nota lançada.
+
+T04  | Notas 7,0 e 8,0; nenhuma aula registrada
+     -> média 7,5; frequência não avaliável; regras ['R4']; prioridade conferir_dados; pendência: Nenhuma aula registrada.
+
+T05  | Avaliação 1 da A01 corrigida de 5,0 para 7,6
+     -> média 6,5; regras ['R2', 'R5']; análises no histórico: [['R2', 'R5'], ['R1', 'R2', 'R3']]; anterior desatualizada: True
+
+T06  | Ana abre a matrícula do Bruno; Gabriel abre turma da Helena; Ana tenta mudar a própria nota
+     -> HTTP 404; HTTP 404; HTTP 403
+
+T07  | Nota 11 numa avaliação de 0 a 10
+     -> HTTP 422: "A nota 11,0 está fora da escala de 0 a 10,0. Nada foi salvo."; nota continua 7,0
+
+T08  | Ana pede conferência da Avaliação 2
+     -> HTTP 201; pedido ligado a "Avaliação 2"; nota continua 5,4
+
+T09  | Síntese com média 5,8 (a real é 5,2); depois, serviço fora do ar
+     -> "descartada: síntese cita número que não está no resultado: 5,8", regras ['R1', 'R2', 'R3']; "indisponivel: ConnectionError", motivo pelas regras mantido
+
+C1   | Quem está em risco em Estrutura de Dados?
+     -> ['Estrutura de Dados']; ordem ['E01', 'E04', 'E02']
+
+C2   | ... baixo desempenho em estrututa de dados
+     -> disciplina reconhecida: ['Estrutura de Dados']; ['E01', 'E04', 'E02']
+
+C3   | Como está a Ana?
+     -> tipo esclarecimento; opções ['Ana Lima', 'Ana Beatriz Souza']
+
+C4   | Como está a turma de Física Quântica?
+     -> tipo sem_dados: "Não encontrei a disciplina "fisica quantica" entre as suas turmas (Computação Gráfica, Desenvolvimento de Sistemas Web, Estrutura de Dados, Inteligência Artificial). Só consigo consultar turmas vinculadas a você."
+
+C5   | Quero as notas e a frequência de desenvolvimento web
+     -> seções ['consultar_frequencia', 'consultar_notas']
+
+C6   | Continuação: E quais deles também têm muitas faltas?
+     -> antes ['E01', 'E04', 'E02']; depois ['E01', 'E04']; continuação True
+
+C7   | Quais são as notas de computação gráfica?
+     -> tipo sem_dados: "Ainda não há notas lançadas em Computação Gráfica. Sem nota, a média não pode ser avaliada (R4)."
+
+C8   | Sem login; aluna; pedido para mudar nota
+     -> HTTP 401; HTTP 403; tipo fora_do_escopo
+
+C9   | Gemini fora do ar (tempo esgotado)
+     -> gerado por regras; verificação indisponivel; ['E01', 'E04', 'E02']
+
+C10  | Gemini redige "média 9,8" (a real é 4,5)
+     -> verificação "descartada: redação cita número que não está nos fatos: 9,8"; texto exibido pelas regras; ['E01', 'E04', 'E02']
+
+19 cenários executados. Resultado gravado em evidencias.txt

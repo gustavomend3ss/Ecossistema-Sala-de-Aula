@@ -1,0 +1,16 @@
+
+::group::✅ Passing tests
+✅ /home/runner/work/Ecossistema-Sala-de-Aula/Ecossistema-Sala-de-Aula/app/test/turma_view_model_test.dart: resumo da análise inclui alerta de entregas sem contar o aluno duas vezes
+✅ /home/runner/work/Ecossistema-Sala-de-Aula/Ecossistema-Sala-de-Aula/app/test/widget_test.dart: formatação pt-BR números e porcentagens
+✅ /home/runner/work/Ecossistema-Sala-de-Aula/Ecossistema-Sala-de-Aula/app/test/widget_test.dart: modelos análise do A01 vinda da API
+✅ /home/runner/work/Ecossistema-Sala-de-Aula/Ecossistema-Sala-de-Aula/app/test/widget_test.dart: modelos nota não lançada continua nula
+✅ /home/runner/work/Ecossistema-Sala-de-Aula/Ecossistema-Sala-de-Aula/app/test/widget_test.dart: radar de entregas da atividade
+✅ /home/runner/work/Ecossistema-Sala-de-Aula/Ecossistema-Sala-de-Aula/app/test/widget_test.dart: situação da entrega aparece por extenso
+✅ /home/runner/work/Ecossistema-Sala-de-Aula/Ecossistema-Sala-de-Aula/app/test/widget_test.dart: chip de acompanhamento sempre tem texto
+✅ /home/runner/work/Ecossistema-Sala-de-Aula/Ecossistema-Sala-de-Aula/app/test/widget_test.dart: login valida campos vazios sem chamar a API
+✅ /home/runner/work/Ecossistema-Sala-de-Aula/Ecossistema-Sala-de-Aula/app/test/widget_test.dart: resposta do assistente com seções, opções e contexto
+✅ /home/runner/work/Ecossistema-Sala-de-Aula/Ecossistema-Sala-de-Aula/app/test/widget_test.dart: resposta antiga, sem campos novos, continua legível
+✅ /home/runner/work/Ecossistema-Sala-de-Aula/Ecossistema-Sala-de-Aula/app/test/widget_test.dart: login avisa quando a sessão expirou e mostra a equipe
+::endgroup::
+
+🎉 11 tests passed.
